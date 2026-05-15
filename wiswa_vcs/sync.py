@@ -3,14 +3,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 import logging
+import os
 
 import anyio
 
 from . import github as github_api, gitlab as gitlab_api
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     import niquests
 
     from .typing import GitHubRepository, GitLabConfig, ProjectSettings
@@ -40,7 +39,7 @@ async def sync_github_to_gitlab(session: niquests.AsyncSession,
                                 gitlab_token: str,
                                 default_branch: str,
                                 gitlab_config: GitLabConfig | None = None,
-                                badges_file: Path | None = None,
+                                badges_file: anyio.Path | os.PathLike[str] | None = None,
                                 apply_mirror_overrides: bool = True) -> None:
     """
     Synchronise GitHub metadata, protected refs, and badges to a GitLab mirror.
@@ -63,8 +62,10 @@ async def sync_github_to_gitlab(session: niquests.AsyncSession,
     gitlab_config : GitLabConfig | None
         Opinionated GitLab tables (``project_settings``, ``push_rules``, ``project_approvals``,
         ``default_branch_protection``). Empty dictionaries are treated as absent.
-    badges_file : pathlib.Path | None
-        Path to a ``docs/badges.rst``-style file. Skipped when the file does not exist.
+    badges_file : anyio.Path | os.PathLike[str] | None
+        Path to a ``docs/badges.rst``-style file. Skipped when the file does not exist. An
+        :py:class:`anyio.Path` is used as-is; anything else implementing
+        :py:class:`os.PathLike` is wrapped in :py:class:`anyio.Path` for the file read.
     apply_mirror_overrides : bool
         When ``True`` (the default), apply
         :py:data:`wiswa_vcs.gitlab.MIRROR_PROJECT_SETTINGS_OVERRIDES` so the GitLab project
@@ -78,7 +79,8 @@ async def sync_github_to_gitlab(session: niquests.AsyncSession,
     tag_patterns = await github_api.protected_tag_patterns(gh, slug)
     badges_text: str | None = None
     if badges_file is not None:
-        async_path = anyio.Path(badges_file)
+        async_path = (badges_file
+                      if isinstance(badges_file, anyio.Path) else anyio.Path(badges_file))
         if await async_path.is_file():
             badges_text = await async_path.read_text(encoding='utf-8')
     config = gitlab_config or {}
