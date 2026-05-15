@@ -17,6 +17,7 @@ docs = [
   "enum-tools[sphinx]>=0.13.0",
   "esbonio>=2.0.0",
   "restructuredtext-lint>=2.0.2",
+  "sphinx-click>=6.0.0",
   "sphinx-datatables>=1.0.0",
   "sphinx-immaterial>=0.13.9",
   "sphinx>=9.1.0; python_version >= \"3.13\"",

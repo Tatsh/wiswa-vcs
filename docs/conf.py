@@ -23,8 +23,9 @@ copyright = str(datetime.now(timezone.utc).year)  # noqa: A001
 project = name
 release = f'v{version}'
 extensions = [
-    'sphinx.ext.autodoc', 'sphinx.ext.intersphinx', 'sphinx.ext.napoleon', 'sphinx_datatables',
-    'sphinx_immaterial', 'sphinxcontrib.autodoc_pydantic', 'sphinxcontrib.jquery'
+    'sphinx.ext.autodoc', 'sphinx.ext.intersphinx', 'sphinx.ext.napoleon', 'sphinx_click',
+    'sphinx_datatables', 'sphinx_immaterial', 'sphinxcontrib.autodoc_pydantic',
+    'sphinxcontrib.jquery'
 ]
 datatables_class = 'sphinx-datatable'
 datatables_options = {'paging': False}

@@ -19,6 +19,9 @@ local utils = import 'utils.libsonnet';
     tests+: {
       'pytest-asyncio': utils.latestPypiPackageVersionCaret('pytest-asyncio'),
     },
+    docs+: {
+      'sphinx-click': utils.latestPypiPackageVersionCaret('sphinx-click'),
+    },
   },
   pyproject+: {
     project+: {

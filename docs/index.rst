@@ -5,6 +5,10 @@ wiswa-vcs
 
 Cross-host VCS metadata sync and mirroring helpers used by Wiswa.
 
+.. click:: wiswa.vcs.commands.sync_gh_gl:main
+   :prog: wiswa-sync-gh-gl
+   :nested: full
+
 .. only:: html
 
    .. automodule:: wiswa.vcs.github
