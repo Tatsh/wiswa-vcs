@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 
     import niquests
 
+    from .typing import GitHubRepository
+
 __all__ = (
     'USER_AGENT',
     'NiquestsGitHubAPI',
@@ -33,7 +35,8 @@ __all__ = (
 log = logging.getLogger(__name__)
 
 USER_AGENT = 'wiswa-vcs'
-"""Requester string passed to :py:class:`gidgethub.abc.GitHubAPI` on construction.
+"""
+Requester string passed to :py:class:`gidgethub.abc.GitHubAPI` on construction.
 
 :meta hide-value:
 """
@@ -119,7 +122,7 @@ def slug_from_uri(uri: str) -> str:
     return urlparse(uri).path.strip('/').removesuffix('.git')
 
 
-async def fetch_repository(api: gh_abc.GitHubAPI, slug: str) -> dict[str, Any]:
+async def fetch_repository(api: gh_abc.GitHubAPI, slug: str) -> GitHubRepository:
     """
     Return the GitHub repository metadata for *slug*.
 
@@ -132,10 +135,10 @@ async def fetch_repository(api: gh_abc.GitHubAPI, slug: str) -> dict[str, Any]:
 
     Returns
     -------
-    dict[str, Any]
+    GitHubRepository
         Decoded JSON body from ``GET /repos/{slug}``.
     """
-    return dict(await api.getitem(f'/repos/{slug}'))
+    return cast('GitHubRepository', dict(await api.getitem(f'/repos/{slug}')))
 
 
 async def protected_branch_names(api: gh_abc.GitHubAPI, slug: str) -> set[str]:

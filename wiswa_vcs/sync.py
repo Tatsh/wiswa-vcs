@@ -1,7 +1,7 @@
 """High-level cross-host synchronisation flows."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 import logging
 
 import anyio
@@ -9,19 +9,18 @@ import anyio
 from . import github as github_api, gitlab as gitlab_api
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
     from pathlib import Path
 
     import niquests
 
-    from .typing import GitLabConfig, ProjectSettings
+    from .typing import GitHubRepository, GitLabConfig, ProjectSettings
 
 __all__ = ('sync_github_to_gitlab',)
 
 log = logging.getLogger(__name__)
 
 
-def _merge_project_settings(base: ProjectSettings | None, github_repo: Mapping[str, Any], *,
+def _merge_project_settings(base: ProjectSettings | None, github_repo: GitHubRepository, *,
                             apply_mirror_overrides: bool) -> ProjectSettings:
     settings: ProjectSettings = base.copy() if base is not None else {}
     settings['description'] = github_repo.get('description') or ''

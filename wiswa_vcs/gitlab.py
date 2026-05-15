@@ -22,7 +22,13 @@ if TYPE_CHECKING:
 
     import niquests
 
-    from .typing import Badge, ProjectSettings
+    from .typing import (
+        Badge,
+        BranchProtectionOverrides,
+        ProjectApprovals,
+        ProjectSettings,
+        PushRules,
+    )
 
 __all__ = (
     'MAINTAINER_ACCESS_LEVEL',
@@ -230,9 +236,9 @@ def parse_badges(text: str) -> list[Badge]:
 async def apply_project_settings(api: gl_abc.GitLabAPI,
                                  encoded_project_path: str,
                                  *,
-                                 project_settings: Mapping[str, object],
-                                 push_rules: Mapping[str, object] | None = None,
-                                 project_approvals: Mapping[str, object] | None = None) -> None:
+                                 project_settings: ProjectSettings,
+                                 push_rules: PushRules | None = None,
+                                 project_approvals: ProjectApprovals | None = None) -> None:
     """
     Apply opinionated project settings, push rules, and approvals to a GitLab project.
 
@@ -242,11 +248,11 @@ async def apply_project_settings(api: gl_abc.GitLabAPI,
         An authenticated gidgetlab client.
     encoded_project_path : str
         Project identifier returned by :py:func:`encode_project_path`.
-    project_settings : Mapping[str, object]
+    project_settings : ProjectSettings
         ``PUT /projects/:id`` request body.
-    push_rules : Mapping[str, object] | None
+    push_rules : PushRules | None
         Push rule body; created when missing, updated otherwise. Skipped when empty.
-    project_approvals : Mapping[str, object] | None
+    project_approvals : ProjectApprovals | None
         Merge-request approval rule body. Skipped when empty.
     """
     await api.put(f'/projects/{encoded_project_path}', data=dict(project_settings))
@@ -266,7 +272,7 @@ async def protect_branches(api: gl_abc.GitLabAPI,
                            encoded_project_path: str,
                            names: Iterable[str],
                            *,
-                           overrides: Mapping[str, object] | None = None) -> None:
+                           overrides: BranchProtectionOverrides | None = None) -> None:
     """
     Ensure each branch *name* is protected on the project.
 
@@ -281,7 +287,7 @@ async def protect_branches(api: gl_abc.GitLabAPI,
         Project identifier returned by :py:func:`encode_project_path`.
     names : Iterable[str]
         Branch names that must be protected.
-    overrides : Mapping[str, object] | None
+    overrides : BranchProtectionOverrides | None
         Extra fields merged into the create body (for example
         ``{'allow_force_push': 'true'}``).
     """
@@ -289,7 +295,7 @@ async def protect_branches(api: gl_abc.GitLabAPI,
     async for branch in api.getiter(f'/projects/{encoded_project_path}/protected_branches'):
         if name := branch.get('name'):
             existing.add(name)
-    extras = dict(overrides or {})
+    extras: dict[str, object] = dict(overrides) if overrides else {}
     for name in sorted(set(names) - existing):
         body: dict[str, object] = {
             'merge_access_level': MAINTAINER_ACCESS_LEVEL,
