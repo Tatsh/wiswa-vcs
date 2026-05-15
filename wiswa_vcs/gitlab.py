@@ -17,6 +17,8 @@ from gidgetlab import abc as gl_abc
 from gidgetlab.exceptions import HTTPException
 from typing_extensions import override
 
+from . import __version__
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
 
@@ -67,8 +69,11 @@ repository.
 
 :meta hide-value:
 """
-USER_AGENT = 'wiswa-vcs'
+USER_AGENT = f'wiswa-vcs/{__version__}'
 """Requester string passed to :py:class:`gidgetlab.abc.GitLabAPI` on construction.
+
+Carries the installed wiswa-vcs version as the product token so GitLab request logs can
+attribute traffic to a specific release.
 
 :meta hide-value:
 """

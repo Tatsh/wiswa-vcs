@@ -16,6 +16,8 @@ import logging
 from gidgethub import HTTPException, abc as gh_abc
 from typing_extensions import override
 
+from . import __version__
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -34,9 +36,12 @@ __all__ = (
 
 log = logging.getLogger(__name__)
 
-USER_AGENT = 'wiswa-vcs'
+USER_AGENT = f'wiswa-vcs/{__version__}'
 """
 Requester string passed to :py:class:`gidgethub.abc.GitHubAPI` on construction.
+
+Carries the installed wiswa-vcs version as the product token so GitHub request logs can
+attribute traffic to a specific release.
 
 :meta hide-value:
 """
