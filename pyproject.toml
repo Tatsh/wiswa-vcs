@@ -65,7 +65,7 @@ email = "audvare@gmail.com"
 name = "Andrew Udvare"
 
 [project.scripts]
-wiswa-sync-gh-gl = "wiswa_vcs.commands.sync_gh_gl:main"
+wiswa-sync-gh-gl = "wiswa.vcs.commands.sync_gh_gl:main"
 
 [project.urls]
 Issues = "https://github.com/Tatsh/wiswa-vcs/issues"
@@ -75,7 +75,7 @@ repository = "https://github.com/Tatsh/wiswa-vcs"
 
 [tool.commitizen]
 name = "cz_path"
-remove_path_prefixes = ["include", "src", "wiswa_vcs"]
+remove_path_prefixes = ["include", "src", "wiswa/vcs"]
 tag_format = "v$version"
 version_files = [
   ".wiswa.jsonnet",
@@ -84,7 +84,7 @@ version_files = [
   "docs/badges.rst",
   "docs/index.rst",
   "package.json",
-  "wiswa_vcs/__init__.py",
+  "wiswa/vcs/__init__.py",
 ]
 version_provider = "pep621"
 
@@ -101,10 +101,10 @@ omit = ["conftest.py", "tests.py", "tests/*/test_*.py", "tests/test_*.py"]
 max-line-length = 100
 
 [tool.hatch.build.targets.sdist]
-include = ["wiswa_vcs", "tests"]
+include = ["wiswa", "tests"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["wiswa_vcs"]
+only-include = ["wiswa/vcs"]
 
 [tool.mypy]
 cache_dir = "~/.cache/mypy"
@@ -120,7 +120,7 @@ warn_unreachable = true
 deprecateTypingAliases = true
 enableExperimentalFeatures = true
 exclude = [".venv", "**/node_modules", "**/__pycache__", "**/.*"]
-include = ["./wiswa_vcs", "./tests"]
+include = ["./wiswa", "./tests"]
 pythonPlatform = "Linux"
 pythonVersion = "3.10"
 reportCallInDefaultInitializer = "warning"

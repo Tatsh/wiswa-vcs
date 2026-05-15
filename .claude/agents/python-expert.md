@@ -35,14 +35,14 @@ conventions defined in the rule files under `.claude/rules/`.
   @click.option('-d', '--debug', is_flag=True)
   def my_command(debug: bool = False) -> None:
       """Do something."""
-      setup_logging(debug=debug, loggers={'wiswa_vcs': {}})
+      setup_logging(debug=debug, loggers={'wiswa.vcs': {}})
   ```
 
   Additional third-party loggers can be added as needed:
 
   ```python
   setup_logging(debug=debug, loggers={
-      'wiswa_vcs': {},
+      'wiswa.vcs': {},
       'urllib3': {},
       'soupsieve': {},
   })
@@ -214,12 +214,12 @@ text, not Sphinx references. Use `soup : bs4.Tag` not `` soup : :py:class:`~bs4.
 In descriptive prose within docstrings, use Sphinx cross-references when referring to other types,
 modules, or functions:
 
-- `` :py:mod:`wiswa_vcs.string` `` for modules
-- `` :py:func:`wiswa_vcs.string.slugify` `` for functions
-- `` :py:class:`wiswa_vcs.typing.ProbeDict` `` for classes
+- `` :py:mod:`wiswa.vcs.string` `` for modules
+- `` :py:func:`wiswa.vcs.string.slugify` `` for functions
+- `` :py:class:`wiswa.vcs.typing.ProbeDict` `` for classes
 - `` :py:meth:`MyClass.my_method` `` for methods
 - Use `~` to shorten the displayed name:
-  `` :py:func:`~wiswa_vcs.string.slugify` `` renders as `slugify`
+  `` :py:func:`~wiswa.vcs.string.slugify` `` renders as `slugify`
 - This applies to third-party types as well: `` :py:class:`~pathlib.Path` ``,
   `` :py:func:`~json.dumps` ``, `` :py:class:`~click.Context` ``, etc.
 

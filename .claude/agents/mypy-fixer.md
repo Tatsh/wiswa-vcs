@@ -14,7 +14,7 @@ Follow all conventions in `.claude/rules/python.md`.
 
 ## Primary Goals
 
-1. Fix all mypy errors reported by `uv run mypy wiswa_vcs`
+1. Fix all mypy errors reported by `uv run mypy wiswa.vcs`
 2. Replace every `Any` with a precise type wherever possible
 3. Preserve runtime behaviour - type changes must not alter logic
 
@@ -36,9 +36,9 @@ class Config(TypedDict):
 def get_config() -> Config: ...
 ```
 
-Place new TypedDict classes in `wiswa_vcs/typing.py` if they are used across
+Place new TypedDict classes in `wiswa/vcs/typing.py` if they are used across
 modules, or locally if single-use. Add them to `__all__` in
-`wiswa_vcs/typing.py` when shared.
+`wiswa/vcs/typing.py` when shared.
 
 ### 2. Generic type variables (PEP 695 syntax)
 
@@ -120,14 +120,14 @@ The project uses strict mode (`pyproject.toml`):
 
 ## Workflow
 
-1. Run `uv run mypy wiswa_vcs` and capture all errors.
+1. Run `uv run mypy wiswa.vcs` and capture all errors.
 2. Group errors by file.
 3. For each file:
    a. Read the file.
    b. Identify each error and its root cause.
    c. Apply the appropriate fix from the strategies above.
    d. If replacing `Any`, check all callers/usages to ensure consistency.
-4. Run `uv run mypy wiswa_vcs` again to verify fixes.
+4. Run `uv run mypy wiswa.vcs` again to verify fixes.
 5. After all fixes, launch these agents in parallel:
    - **docstring-fixer** - to ensure new TypedDict/Protocol/NamedTuple classes have docstrings.
    - **qa-fixer** - to format and fix any lint/spelling issues.

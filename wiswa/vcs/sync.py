@@ -68,7 +68,7 @@ async def sync_github_to_gitlab(session: niquests.AsyncSession,
         :py:class:`os.PathLike` is wrapped in :py:class:`anyio.Path` for the file read.
     apply_mirror_overrides : bool
         When ``True`` (the default), apply
-        :py:data:`wiswa_vcs.gitlab.MIRROR_PROJECT_SETTINGS_OVERRIDES` so the GitLab project
+        :py:data:`wiswa.vcs.gitlab.MIRROR_PROJECT_SETTINGS_OVERRIDES` so the GitLab project
         behaves as a read-only mirror.
     """
     gh = github_api.NiquestsGitHubAPI(session, github_api.USER_AGENT, oauth_token=github_token)

@@ -46,7 +46,7 @@ name: 'Tests'
     branches:
       - 'master'
     paths:
-      - 'wiswa_vcs/**'
+      - 'wiswa/vcs/**'
       - '.github/workflows/tests.yml'
       - 'pyproject.toml'
       - 'uv.lock'
@@ -56,7 +56,7 @@ name: 'Tests'
     branches:
       - 'master'
     paths:
-      - 'wiswa_vcs/**'
+      - 'wiswa/vcs/**'
       - '.github/workflows/tests.yml'
       - 'pyproject.toml'
       - 'uv.lock'

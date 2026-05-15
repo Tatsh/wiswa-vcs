@@ -8,12 +8,13 @@ import json
 import logging
 
 from bascom import setup_logging
-from wiswa_vcs.sync import sync_github_to_gitlab
 import click
 import niquests
 
+from ..sync import sync_github_to_gitlab
+
 if TYPE_CHECKING:
-    from wiswa_vcs.typing import GitLabConfig
+    from ..typing import GitLabConfig
 
 __all__ = ('main',)
 
@@ -91,7 +92,7 @@ def main(*, badges_file: Path, debug: bool, default_branch: str, github_repo_uri
          github_token: str, gitlab_config: str | None, gitlab_repo_uri: str, gitlab_token: str,
          no_mirror_overrides: bool) -> None:
     """Mirror GitHub metadata, protected refs, and badges to a GitLab project."""  # noqa: DOC501
-    setup_logging(debug=debug, loggers={'wiswa_vcs': {}})
+    setup_logging(debug=debug, loggers={'wiswa.vcs': {}})
     config = _load_gitlab_config(gitlab_config)
     resolved_badges_file: Path | None = badges_file if badges_file.is_file() else None
 

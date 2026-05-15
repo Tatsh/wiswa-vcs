@@ -1,4 +1,4 @@
-"""Tests for :py:mod:`wiswa_vcs.gitlab`."""
+"""Tests for :py:mod:`wiswa.vcs.gitlab`."""
 from __future__ import annotations
 
 from http import HTTPStatus
@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, call
 
 from gidgetlab.exceptions import HTTPException
-from wiswa_vcs.gitlab import (
+from wiswa.vcs.gitlab import (
     MAINTAINER_ACCESS_LEVEL,
     MIRROR_PROJECT_SETTINGS_OVERRIDES,
     NiquestsGitLabAPI,
@@ -20,7 +20,7 @@ from wiswa_vcs.gitlab import (
     sync_badges,
     trigger_housekeeping,
 )
-from wiswa_vcs.typing import Badge
+from wiswa.vcs.typing import Badge
 import pytest
 
 if TYPE_CHECKING:
@@ -139,7 +139,7 @@ async def test_niquests_gitlab_api_request_raises_when_response_incomplete() -> 
 
 @pytest.mark.asyncio
 async def test_niquests_gitlab_api_sleep_delegates(mocker: MockerFixture) -> None:
-    sleep = mocker.patch('wiswa_vcs.gitlab.asyncio.sleep', new=AsyncMock())
+    sleep = mocker.patch('wiswa.vcs.gitlab.asyncio.sleep', new=AsyncMock())
     api = NiquestsGitLabAPI(MagicMock(), 'wiswa-vcs')
     await api.sleep(1.5)
     sleep.assert_awaited_once_with(1.5)

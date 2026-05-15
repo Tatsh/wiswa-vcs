@@ -1,4 +1,4 @@
-"""Tests for :py:mod:`wiswa_vcs.github`."""
+"""Tests for :py:mod:`wiswa.vcs.github`."""
 from __future__ import annotations
 
 from http import HTTPStatus
@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 from gidgethub import HTTPException
-from wiswa_vcs.github import (
+from wiswa.vcs.github import (
     NiquestsGitHubAPI,
     fetch_repository,
     protected_branch_names,
@@ -78,7 +78,7 @@ async def test_niquests_github_api_request_raises_when_response_incomplete() -> 
 
 @pytest.mark.asyncio
 async def test_niquests_github_api_sleep_delegates(mocker: MockerFixture) -> None:
-    sleep = mocker.patch('wiswa_vcs.github.asyncio.sleep', new=AsyncMock())
+    sleep = mocker.patch('wiswa.vcs.github.asyncio.sleep', new=AsyncMock())
     api = NiquestsGitHubAPI(MagicMock(), 'wiswa-vcs')
     await api.sleep(0.0)
     sleep.assert_awaited_once_with(0.0)
@@ -127,7 +127,7 @@ async def test_protected_branch_names_returns_empty_on_http_exception(
         mocker: MockerFixture) -> None:
     api = MagicMock()
     api.getiter = MagicMock(side_effect=HTTPException(HTTPStatus.INTERNAL_SERVER_ERROR, 'boom'))
-    warn = mocker.patch('wiswa_vcs.github.log.warning')
+    warn = mocker.patch('wiswa.vcs.github.log.warning')
     assert await protected_branch_names(api, 'owner/repo') == set()
     warn.assert_called_once()
 
@@ -163,7 +163,7 @@ async def test_protected_tag_patterns_collects_from_tag_rulesets() -> None:
 async def test_protected_tag_patterns_returns_empty_on_list_error(mocker: MockerFixture) -> None:
     api = MagicMock()
     api.getiter = MagicMock(side_effect=HTTPException(HTTPStatus.FORBIDDEN, 'forbidden'))
-    warn = mocker.patch('wiswa_vcs.github.log.warning')
+    warn = mocker.patch('wiswa.vcs.github.log.warning')
     assert await protected_tag_patterns(api, 'owner/repo') == set()
     warn.assert_called_once()
 

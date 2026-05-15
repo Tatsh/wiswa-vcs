@@ -304,8 +304,7 @@ async def protect_branches(api: gl_abc.GitLabAPI,
             'merge_access_level': MAINTAINER_ACCESS_LEVEL,
             'name': name,
             'push_access_level': MAINTAINER_ACCESS_LEVEL,
-        }
-        body.update(extras)
+        } | extras
         await api.post(f'/projects/{encoded_project_path}/protected_branches', data=body)
         log.info('Protected branch `%s`.', name)
 

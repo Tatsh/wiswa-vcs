@@ -1,4 +1,4 @@
-"""Type definitions shared across :py:mod:`wiswa_vcs` modules."""
+"""Type definitions shared across :py:mod:`wiswa.vcs` modules."""
 from __future__ import annotations
 
 from typing import Literal, TypeAlias, TypedDict
@@ -162,7 +162,7 @@ class BranchProtectionOverrides(TypedDict, total=False):
     Extra fields merged into a ``POST /projects/:id/protected_branches`` request body.
 
     The ``name``, ``merge_access_level``, and ``push_access_level`` fields are always set by
-    :py:func:`wiswa_vcs.gitlab.protect_branches` and must not appear here.
+    :py:func:`wiswa.vcs.gitlab.protect_branches` and must not appear here.
     """
 
     allow_force_push: bool | str
@@ -205,7 +205,7 @@ class ProjectSettings(TypedDict, total=False):
     ``PUT /projects/:id`` request body covering settings exercised by Wiswa-driven syncs.
 
     GitLab accepts many additional project setting keys; the entries below are the ones set
-    by :py:func:`wiswa_vcs.sync.sync_github_to_gitlab` and the most commonly overridden
+    by :py:func:`wiswa.vcs.sync.sync_github_to_gitlab` and the most commonly overridden
     visibility, feature, and merge-strategy fields.
     """
 

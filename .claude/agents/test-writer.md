@@ -30,7 +30,7 @@ Use the `runner` fixture (type `CliRunner`):
 
 ```python
 def test_my_command_success(runner: CliRunner, mocker: MockerFixture) -> None:
-    mock_func = mocker.patch('wiswa_vcs.commands.module.some_function')
+    mock_func = mocker.patch('wiswa.vcs.commands.module.some_function')
     result = runner.invoke(my_command_main, ['arg1', '--flag'])
     assert result.exit_code == 0
     mock_func.assert_called_once()

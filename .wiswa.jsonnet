@@ -23,7 +23,7 @@ local utils = import 'utils.libsonnet';
   pyproject+: {
     project+: {
       scripts+: {
-        'wiswa-sync-gh-gl': 'wiswa_vcs.commands.sync_gh_gl:main',
+        'wiswa-sync-gh-gl': 'wiswa.vcs.commands.sync_gh_gl:main',
       },
     },
     tool+: {

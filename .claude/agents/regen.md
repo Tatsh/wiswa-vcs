@@ -74,7 +74,7 @@ and verify nothing is broken before committing.
 
 ## Rules
 
-- Never modify source code under `wiswa_vcs/` or `tests/`. This agent only updates
+- Never modify source code under `wiswa/vcs/` or `tests/`. This agent only updates
   managed/generated files.
 - If Wiswa fails, stop and report the error.
 - If any post-processing step fails, stop and report the error.

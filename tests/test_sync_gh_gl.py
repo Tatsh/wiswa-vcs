@@ -1,10 +1,10 @@
-"""Tests for :py:mod:`wiswa_vcs.commands.sync_gh_gl`."""
+"""Tests for :py:mod:`wiswa.vcs.commands.sync_gh_gl`."""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
-from wiswa_vcs.commands.sync_gh_gl import main
+from wiswa.vcs.commands.sync_gh_gl import main
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -30,11 +30,11 @@ def _patch_session(mocker: MockerFixture) -> None:
     session_cm = mocker.MagicMock()
     session_cm.__aenter__ = AsyncMock(return_value='session-object')
     session_cm.__aexit__ = AsyncMock(return_value=False)
-    mocker.patch('wiswa_vcs.commands.sync_gh_gl.niquests.AsyncSession', return_value=session_cm)
+    mocker.patch('wiswa.vcs.commands.sync_gh_gl.niquests.AsyncSession', return_value=session_cm)
 
 
 def test_sync_gh_gl_invokes_sync(runner: CliRunner, mocker: MockerFixture, tmp_path: Path) -> None:
-    sync = mocker.patch('wiswa_vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
+    sync = mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
     _patch_session(mocker)
     result = runner.invoke(main, [*_BASE_ARGS, '--badges-file', str(tmp_path / 'missing.rst')])
     assert result.exit_code == 0, result.output
@@ -52,7 +52,7 @@ def test_sync_gh_gl_passes_badges_file_when_present(runner: CliRunner, mocker: M
                                                     tmp_path: Path) -> None:
     badges = tmp_path / 'badges.rst'
     badges.write_text('', encoding='utf-8')
-    sync = mocker.patch('wiswa_vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
+    sync = mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
     _patch_session(mocker)
     result = runner.invoke(main,
                            [*_BASE_ARGS, '--badges-file',
@@ -65,7 +65,7 @@ def test_sync_gh_gl_passes_badges_file_when_present(runner: CliRunner, mocker: M
 
 
 def test_sync_gh_gl_decodes_gitlab_config_json(runner: CliRunner, mocker: MockerFixture) -> None:
-    sync = mocker.patch('wiswa_vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
+    sync = mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
     _patch_session(mocker)
     result = runner.invoke(
         main, [*_BASE_ARGS, '--gitlab-config', '{"project_settings": {"issues_enabled": "true"}}'])
@@ -77,7 +77,7 @@ def test_sync_gh_gl_decodes_gitlab_config_json(runner: CliRunner, mocker: Mocker
 
 def test_sync_gh_gl_rejects_invalid_gitlab_config_json(runner: CliRunner,
                                                        mocker: MockerFixture) -> None:
-    mocker.patch('wiswa_vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
+    mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
     _patch_session(mocker)
     result = runner.invoke(main, [*_BASE_ARGS, '--gitlab-config', 'not json'])
     assert result.exit_code != 0
@@ -86,7 +86,7 @@ def test_sync_gh_gl_rejects_invalid_gitlab_config_json(runner: CliRunner,
 
 def test_sync_gh_gl_rejects_non_object_gitlab_config_json(runner: CliRunner,
                                                           mocker: MockerFixture) -> None:
-    mocker.patch('wiswa_vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
+    mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
     _patch_session(mocker)
     result = runner.invoke(main, [*_BASE_ARGS, '--gitlab-config', '[1, 2]'])
     assert result.exit_code != 0
@@ -97,7 +97,7 @@ def test_sync_gh_gl_decodes_gitlab_config_from_file(runner: CliRunner, mocker: M
                                                     tmp_path: Path) -> None:
     config_file = tmp_path / 'gitlab-config.json'
     config_file.write_text('{"project_settings": {"issues_enabled": "true"}}', encoding='utf-8')
-    sync = mocker.patch('wiswa_vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
+    sync = mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
     _patch_session(mocker)
     result = runner.invoke(main, [*_BASE_ARGS, '--gitlab-config', str(config_file)])
     assert result.exit_code == 0, result.output
@@ -111,7 +111,7 @@ def test_sync_gh_gl_rejects_gitlab_config_file_with_invalid_json(runner: CliRunn
                                                                  tmp_path: Path) -> None:
     config_file = tmp_path / 'gitlab-config.json'
     config_file.write_text('not really json', encoding='utf-8')
-    mocker.patch('wiswa_vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
+    mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
     _patch_session(mocker)
     result = runner.invoke(main, [*_BASE_ARGS, '--gitlab-config', str(config_file)])
     assert result.exit_code != 0
@@ -119,7 +119,7 @@ def test_sync_gh_gl_rejects_gitlab_config_file_with_invalid_json(runner: CliRunn
 
 
 def test_sync_gh_gl_aborts_on_sync_failure(runner: CliRunner, mocker: MockerFixture) -> None:
-    mocker.patch('wiswa_vcs.commands.sync_gh_gl.sync_github_to_gitlab',
+    mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab',
                  new=AsyncMock(side_effect=RuntimeError('boom')))
     _patch_session(mocker)
     result = runner.invoke(main, list(_BASE_ARGS))
@@ -127,7 +127,7 @@ def test_sync_gh_gl_aborts_on_sync_failure(runner: CliRunner, mocker: MockerFixt
 
 
 def test_sync_gh_gl_reads_env_vars(runner: CliRunner, mocker: MockerFixture) -> None:
-    sync = mocker.patch('wiswa_vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
+    sync = mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
     _patch_session(mocker)
     result = runner.invoke(main, [],
                            env={
