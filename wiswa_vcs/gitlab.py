@@ -18,7 +18,7 @@ from gidgetlab.exceptions import HTTPException
 from typing_extensions import override
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable, Iterator, Mapping
 
     import niquests
 
@@ -190,9 +190,9 @@ def encode_project_path(path: str) -> str:
     return quote(path, safe='')
 
 
-def parse_badges(text: str) -> list[Badge]:
+def parse_badges(text: str) -> Iterator[Badge]:
     """
-    Parse a ``docs/badges.rst``-style document into a list of badges.
+    Yield badges parsed from a ``docs/badges.rst``-style document.
 
     Recognises ``.. image:: URL`` directives with ``:target:`` and ``:alt:`` options. Entries
     missing either option, or whose image URL is not an absolute HTTP URL, are skipped.
@@ -202,12 +202,11 @@ def parse_badges(text: str) -> list[Badge]:
     text : str
         Full file contents.
 
-    Returns
-    -------
-    list[Badge]
+    Yields
+    ------
+    Badge
         Badge definitions in source order.
     """
-    badges: list[Badge] = []
     lines = text.splitlines()
     cursor = 0
     while cursor < len(lines):
@@ -229,8 +228,7 @@ def parse_badges(text: str) -> list[Badge]:
                     alt = value
             cursor += 1
         if alt and link_url and image_url.startswith('http'):
-            badges.append({'image_url': image_url, 'link_url': link_url, 'name': alt})
-    return badges
+            yield {'image_url': image_url, 'link_url': link_url, 'name': alt}
 
 
 async def apply_project_settings(api: gl_abc.GitLabAPI,

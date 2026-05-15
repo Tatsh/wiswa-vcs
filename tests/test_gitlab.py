@@ -84,8 +84,7 @@ def test_mirror_overrides_disable_expected_features() -> None:
 
 
 def test_parse_badges_extracts_valid_entries() -> None:
-    badges = parse_badges(_SAMPLE_BADGES_RST)
-    assert badges == [{
+    assert list(parse_badges(_SAMPLE_BADGES_RST)) == [{
         'image_url': 'https://img.shields.io/pypi/v/wiswa',
         'link_url': 'https://pypi.org/project/wiswa/',
         'name': 'PyPI - Version',
@@ -93,7 +92,7 @@ def test_parse_badges_extracts_valid_entries() -> None:
 
 
 def test_parse_badges_empty_input() -> None:
-    assert parse_badges('') == []
+    assert list(parse_badges('')) == []
 
 
 def test_parse_badges_ignores_unknown_options_and_malformed_option_lines() -> None:
@@ -102,8 +101,7 @@ def test_parse_badges_ignores_unknown_options_and_malformed_option_lines() -> No
             '   :alt: With Extras\n'
             '   :width: 100px\n'
             '   :not-an-option-because-no-trailing-colon\n')
-    badges = parse_badges(text)
-    assert badges == [{
+    assert list(parse_badges(text)) == [{
         'image_url': 'https://img.shields.io/badge/with-extras',
         'link_url': 'https://example.com',
         'name': 'With Extras',
