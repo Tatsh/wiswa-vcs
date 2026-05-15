@@ -104,7 +104,7 @@ max-line-length = 100
 include = ["wiswa", "tests"]
 
 [tool.hatch.build.targets.wheel]
-only-include = ["wiswa/vcs"]
+packages = ["wiswa"]
 
 [tool.mypy]
 cache_dir = "~/.cache/mypy"
