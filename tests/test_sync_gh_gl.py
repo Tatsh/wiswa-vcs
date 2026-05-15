@@ -93,6 +93,31 @@ def test_sync_gh_gl_rejects_non_object_gitlab_config_json(runner: CliRunner,
     assert 'json object' in result.output.lower() or 'invalid' in result.output.lower()
 
 
+def test_sync_gh_gl_decodes_gitlab_config_from_file(runner: CliRunner, mocker: MockerFixture,
+                                                    tmp_path: Path) -> None:
+    config_file = tmp_path / 'gitlab-config.json'
+    config_file.write_text('{"project_settings": {"issues_enabled": "true"}}', encoding='utf-8')
+    sync = mocker.patch('wiswa_vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
+    _patch_session(mocker)
+    result = runner.invoke(main, [*_BASE_ARGS, '--gitlab-config', str(config_file)])
+    assert result.exit_code == 0, result.output
+    assert sync.await_args is not None
+    _, kwargs = sync.await_args
+    assert kwargs['gitlab_config'] == {'project_settings': {'issues_enabled': 'true'}}
+
+
+def test_sync_gh_gl_rejects_gitlab_config_file_with_invalid_json(runner: CliRunner,
+                                                                 mocker: MockerFixture,
+                                                                 tmp_path: Path) -> None:
+    config_file = tmp_path / 'gitlab-config.json'
+    config_file.write_text('not really json', encoding='utf-8')
+    mocker.patch('wiswa_vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
+    _patch_session(mocker)
+    result = runner.invoke(main, [*_BASE_ARGS, '--gitlab-config', str(config_file)])
+    assert result.exit_code != 0
+    assert 'decode' in result.output.lower() or 'invalid' in result.output.lower()
+
+
 def test_sync_gh_gl_aborts_on_sync_failure(runner: CliRunner, mocker: MockerFixture) -> None:
     mocker.patch('wiswa_vcs.commands.sync_gh_gl.sync_github_to_gitlab',
                  new=AsyncMock(side_effect=RuntimeError('boom')))

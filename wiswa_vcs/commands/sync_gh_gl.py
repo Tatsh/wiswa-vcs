@@ -23,13 +23,28 @@ log = logging.getLogger(__name__)
 def _load_gitlab_config(raw: str | None) -> GitLabConfig:
     if not raw:
         return {}
+    if raw.lstrip().startswith('{'):
+        text = raw
+        source = 'JSON literal'
+    else:
+        path = Path(raw)
+        if not path.is_file():
+            msg = (f'--gitlab-config must be a JSON object or the path to an existing JSON file; '
+                   f'{raw!r} is neither.')
+            raise click.BadParameter(msg)
+        try:
+            text = path.read_text(encoding='utf-8')
+        except OSError as e:
+            msg = f'Could not read --gitlab-config file `{path}`: {e}.'
+            raise click.BadParameter(msg) from e
+        source = f'file `{path}`'
     try:
-        loaded = json.loads(raw)
+        loaded = json.loads(text)
     except json.JSONDecodeError as e:
-        msg = f'Could not decode --gitlab-config JSON: {e}.'
+        msg = f'Could not decode --gitlab-config {source}: {e}.'
         raise click.BadParameter(msg) from e
     if not isinstance(loaded, dict):
-        msg = '--gitlab-config must decode to a JSON object.'
+        msg = f'--gitlab-config must decode to a JSON object (from {source}).'
         raise click.BadParameter(msg)
     return cast('GitLabConfig', loaded)
 
@@ -57,8 +72,9 @@ def _load_gitlab_config(raw: str | None) -> GitLabConfig:
               required=True)
 @click.option('--gitlab-config',
               envvar='GITLAB_CONFIG_JSON',
-              help=('JSON object with optional `project_settings`, `push_rules`, '
-                    '`project_approvals`, and `default_branch_protection` tables.'))
+              help=('JSON object literal, or the path to a JSON file, with optional '
+                    '`project_settings`, `push_rules`, `project_approvals`, and '
+                    '`default_branch_protection` tables.'))
 @click.option('--gitlab-repo-uri',
               envvar='GITLAB_REPO_URI',
               help='HTTPS URI of the destination GitLab repository.',
