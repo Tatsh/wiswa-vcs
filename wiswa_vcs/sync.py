@@ -14,16 +14,16 @@ if TYPE_CHECKING:
 
     import niquests
 
-    from .typing import GitLabConfig
+    from .typing import GitLabConfig, ProjectSettings
 
 __all__ = ('sync_github_to_gitlab',)
 
 log = logging.getLogger(__name__)
 
 
-def _merge_project_settings(base: Mapping[str, object] | None, github_repo: Mapping[str, Any], *,
-                            apply_mirror_overrides: bool) -> dict[str, object]:
-    settings: dict[str, object] = dict(base or {})
+def _merge_project_settings(base: ProjectSettings | None, github_repo: Mapping[str, Any], *,
+                            apply_mirror_overrides: bool) -> ProjectSettings:
+    settings: ProjectSettings = base.copy() if base is not None else {}
     settings['description'] = github_repo.get('description') or ''
     settings['topics'] = list(github_repo.get('topics') or [])
     if homepage := github_repo.get('homepage'):

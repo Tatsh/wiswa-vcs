@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
     import niquests
 
-    from .typing import Badge
+    from .typing import Badge, ProjectSettings
 
 __all__ = (
     'MAINTAINER_ACCESS_LEVEL',
@@ -47,7 +47,7 @@ MAINTAINER_ACCESS_LEVEL = 40
 
 :meta hide-value:
 """
-MIRROR_PROJECT_SETTINGS_OVERRIDES: dict[str, str] = {
+MIRROR_PROJECT_SETTINGS_OVERRIDES: ProjectSettings = {
     'builds_access_level': 'disabled',
     'lfs_enabled': 'false',
     'merge_requests_access_level': 'disabled',
