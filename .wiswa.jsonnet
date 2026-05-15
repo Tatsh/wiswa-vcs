@@ -7,11 +7,10 @@ local utils = import 'utils.libsonnet';
   description: 'Cross-host VCS metadata sync and mirroring helpers used by Wiswa.',
   keywords: ['command line', 'github', 'gitlab', 'mirror', 'sync', 'vcs'],
   security_policy_supported_versions: { '0.0.x': ':white_check_mark:' },
+  want_main: true,
   python_deps+: {
     main+: {
       anyio: utils.latestPypiPackageVersionCaret('anyio'),
-      bascom: utils.latestPypiPackageVersionCaret('bascom'),
-      click: utils.latestPypiPackageVersionCaret('click'),
       gidgethub: utils.latestPypiPackageVersionCaret('gidgethub'),
       gidgetlab: utils.latestPypiPackageVersionCaret('gidgetlab'),
       niquests: utils.latestPypiPackageVersionCaret('niquests'),
@@ -19,13 +18,10 @@ local utils = import 'utils.libsonnet';
     tests+: {
       'pytest-asyncio': utils.latestPypiPackageVersionCaret('pytest-asyncio'),
     },
-    docs+: {
-      'sphinx-click': utils.latestPypiPackageVersionCaret('sphinx-click'),
-    },
   },
   pyproject+: {
     project+: {
-      scripts+: {
+      scripts: {
         'wiswa-sync-gh-gl': 'wiswa.vcs.commands.sync_gh_gl:main',
       },
     },
