@@ -10,7 +10,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-05-14T21:07:31.406856607Z"
+exclude-newer = "2026-05-14T21:07:50.168851992Z"
 exclude-newer-span = "P1W"
 
 [options.exclude-newer-package]
@@ -2892,6 +2892,8 @@ dependencies = [
     { name = "gidgetlab" },
     { name = "keyring" },
     { name = "niquests" },
+    { name = "packaging" },
+    { name = "platformdirs" },
     { name = "typing-extensions" },
     { name = "wiswa-typing" },
 ]
@@ -2935,6 +2937,8 @@ requires-dist = [
     { name = "gidgetlab", specifier = ">=2.1.1" },
     { name = "keyring", specifier = ">=25.7.0" },
     { name = "niquests", specifier = ">=3.18.8" },
+    { name = "packaging", specifier = ">=26.2" },
+    { name = "platformdirs", specifier = ">=4.9.6" },
     { name = "typing-extensions", specifier = ">=4.15.0" },
     { name = "wiswa-typing", specifier = ">=0.0.1" },
 ]

@@ -52,6 +52,8 @@ dependencies = [
   "gidgetlab>=2.1.1",
   "keyring>=25.7.0",
   "niquests>=3.18.8",
+  "packaging>=26.2",
+  "platformdirs>=4.9.6",
   "typing-extensions>=4.15.0",
   "wiswa-typing>=0.0.1",
 ]

@@ -8,7 +8,7 @@ same shape as the upstream :py:class:`gidgethub.aiohttp.GitHubAPI` and
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from urllib.parse import urlparse
 import asyncio
 import logging
@@ -25,9 +25,11 @@ if TYPE_CHECKING:
     import niquests
 
 __all__ = (
+    'GITHUB_API_HEADERS',
     'USER_AGENT',
     'NiquestsGitHubAPI',
     'fetch_repository',
+    'get_pages_build_type',
     'protected_branch_names',
     'protected_tag_patterns',
     'slug_from_uri',
@@ -41,6 +43,17 @@ Requester string passed to :py:class:`gidgethub.abc.GitHubAPI` on construction.
 
 Carries the installed wiswa-vcs version as the product token so GitHub request logs can
 attribute traffic to a specific release.
+
+:meta hide-value:
+"""
+GITHUB_API_HEADERS: dict[str, str] = {
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+}
+"""Default request headers for direct ``niquests`` calls to the GitHub REST API.
+
+Use these when bypassing :py:class:`NiquestsGitHubAPI` (for example to request a non-default
+``Accept`` media type such as ``application/vnd.github.sha``).
 
 :meta hide-value:
 """
@@ -207,3 +220,34 @@ async def protected_tag_patterns(api: gh_abc.GitHubAPI, slug: str) -> set[str]:
             if pattern and pattern != '~ALL':
                 patterns.add(pattern)
     return patterns
+
+
+# TODO(wiswa-typing): swap inline Literal for wiswa.typing.github.PagesBuildType once a
+# wiswa-typing release publishes it.
+async def get_pages_build_type(api: gh_abc.GitHubAPI,
+                               slug: str) -> Literal['legacy', 'workflow'] | None:
+    """
+    Return the GitHub Pages ``build_type`` for *slug*.
+
+    Parameters
+    ----------
+    api : gidgethub.abc.GitHubAPI
+        An authenticated gidgethub client.
+    slug : str
+        Repository slug in ``owner/repo`` form.
+
+    Returns
+    -------
+    Literal['legacy', 'workflow'] | None
+        ``'legacy'`` when Pages deploys from a branch, ``'workflow'`` when it uses GitHub
+        Actions, or :py:data:`None` when the API call fails or the field is missing.
+    """
+    try:
+        pages = await api.getitem(f'/repos/{slug}/pages')
+    except HTTPException as e:
+        log.debug('GitHub Pages API failed for `%s`: %s.', slug, e)
+        return None
+    build_type = pages.get('build_type') if isinstance(pages, dict) else None
+    if build_type in {'legacy', 'workflow'}:
+        return cast('Literal["legacy", "workflow"]', build_type)
+    return None

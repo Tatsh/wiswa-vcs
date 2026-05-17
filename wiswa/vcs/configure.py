@@ -1,12 +1,20 @@
-"""Opinionated GitLab project configuration driven by a settings mapping."""
+"""Opinionated GitHub and GitLab project configuration driven by a settings mapping."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
+from urllib.parse import urlparse
 import logging
 
-from gidgetlab.exceptions import HTTPException
+from gidgethub import HTTPException as GitHubHTTPException
+from gidgetlab.exceptions import HTTPException as GitLabHTTPException
 
-from .auth import GITLAB_TOKEN_ENV, get_gitlab_token
+from .auth import GITHUB_TOKEN_ENV, GITLAB_TOKEN_ENV, get_github_token, get_gitlab_token
+from .github import (
+    USER_AGENT as GITHUB_USER_AGENT,
+    NiquestsGitHubAPI,
+    get_pages_build_type,
+    slug_from_uri,
+)
 from .gitlab import (
     USER_AGENT,
     NiquestsGitLabAPI,
@@ -31,7 +39,11 @@ if TYPE_CHECKING:
     )
     import niquests
 
-__all__ = ('configure_gitlab_project', 'gitlab_merged_remote_tables')
+__all__ = (
+    'configure_github_project',
+    'configure_gitlab_project',
+    'gitlab_merged_remote_tables',
+)
 
 log = logging.getLogger(__name__)
 
@@ -204,6 +216,283 @@ async def configure_gitlab_project(session: niquests.AsyncSession, settings: Set
         return
     try:
         await _configure(session, settings, token)
-    except HTTPException as e:
+    except GitLabHTTPException as e:
         log.warning('Caught error updating GitLab project: %s.', e)
         log.debug('%r', e)
+
+
+# TODO(wiswa-typing): once published, replace the inline list[dict[str, Any]] with
+# list[wiswa.typing.github.Ruleset] (a TypedDict covering name, target, enforcement,
+# bypass_actors, conditions, and rules).
+_DESIRED_GITHUB_RULESETS: list[dict[str, Any]] = [
+    {
+        'name':
+            'Protect version tags',
+        'target':
+            'tag',
+        'enforcement':
+            'active',
+        'bypass_actors': [{
+            'actor_id': 5,
+            'actor_type': 'RepositoryRole',
+            'bypass_mode': 'always',
+        }],
+        'conditions': {
+            'ref_name': {
+                'exclude': [],
+                'include': ['refs/tags/v*']
+            }
+        },
+        'rules': [
+            {
+                'type': 'deletion'
+            },
+            {
+                'type': 'non_fast_forward'
+            },
+            {
+                'type': 'required_linear_history'
+            },
+            {
+                'type': 'creation'
+            },
+            {
+                'type': 'update'
+            },
+            {
+                'type': 'required_signatures'
+            },
+        ],
+    },
+    {
+        'name':
+            'Protect default branch',
+        'target':
+            'branch',
+        'enforcement':
+            'active',
+        'bypass_actors': [{
+            'actor_id': 5,
+            'actor_type': 'RepositoryRole',
+            'bypass_mode': 'always',
+        }],
+        'conditions': {
+            'ref_name': {
+                'exclude': [],
+                'include': ['~DEFAULT_BRANCH']
+            }
+        },
+        'rules': [
+            {
+                'type': 'deletion'
+            },
+            {
+                'type': 'non_fast_forward'
+            },
+            {
+                'type': 'pull_request',
+                'parameters': {
+                    'allowed_merge_methods': ['squash', 'rebase'],
+                    'dismiss_stale_reviews_on_push': True,
+                    'require_code_owner_review': True,
+                    'require_last_push_approval': True,
+                    'required_approving_review_count': 1,
+                    'required_review_thread_resolution': True,
+                },
+            },
+        ],
+    },
+    {
+        'name':
+            'Copilot review for default branch',
+        'target':
+            'branch',
+        'enforcement':
+            'active',
+        'bypass_actors': [{
+            'actor_id': 5,
+            'actor_type': 'RepositoryRole',
+            'bypass_mode': 'always',
+        }],
+        'conditions': {
+            'ref_name': {
+                'exclude': [],
+                'include': ['~DEFAULT_BRANCH']
+            }
+        },
+        'rules': [
+            {
+                'type': 'deletion'
+            },
+            {
+                'type': 'copilot_code_review',
+                'parameters': {
+                    'review_on_push': True,
+                    'review_draft_pull_requests': True
+                },
+            },
+        ],
+    },
+]
+
+
+# TODO(wiswa-typing): once published, replace dict[str, object] with
+# wiswa.typing.github.RepositoryConfig (a TypedDict covering the PATCH /repos/:slug body).
+def _github_repo_config(settings: Settings) -> dict[str, object]:
+    return {
+        'allow_auto_merge': False,
+        'allow_merge_commit': False,
+        'allow_rebase_merge': True,
+        'allow_squash_merge': True,
+        'allow_update_branch': True,
+        'archived': False,
+        'delete_branch_on_merge': True,
+        'dependabot_on_actions_enabled': True,
+        'dependency_graph_autosubmit_action_enabled': True,
+        'dependency_graph_autosubmit_action_use_labeled_runners': False,
+        'description': settings.get('description', ''),
+        'enable_max_pushes_checkbox': False,
+        'enable_repository_funding_links': True,
+        'has_discussions': False,
+        'has_downloads': True,
+        'has_issues': True,
+        'has_pages': True,
+        'has_projects': False,
+        'has_wiki': False,
+        'homepage': settings.get('homepage', ''),
+        'include_lfs_objects': False,
+        'security_and_analysis': {
+            'dependabot_security_updates': {
+                'status': 'enabled'
+            },
+            'secret_scanning': {
+                'status': 'enabled'
+            },
+            'secret_scanning_non_provider_patterns': {
+                'status': 'disabled'
+            },
+            'secret_scanning_push_protection': {
+                'status': 'enabled'
+            },
+            'secret_scanning_validity_checks': {
+                'status': 'disabled'
+            },
+        },
+        'squash_merge_commit_message': 'COMMIT_MESSAGES',
+        'squash_merge_commit_title': 'COMMIT_OR_PR_TITLE',
+        'use_squash_pr_title_as_default': False,
+        'vulnerability_updates_grouping_enabled': True,
+        'web_commit_signoff_required': True,
+    }
+
+
+async def _patch_github_repository(api: NiquestsGitHubAPI, slug: str, settings: Settings) -> None:
+    try:
+        await api.patch(f'/repos/{slug}', data=_github_repo_config(settings))
+        log.info('Applied GitHub repository settings.')
+    except GitHubHTTPException as e:
+        log.warning('Could not apply GitHub repository settings: %s.', e)
+
+
+async def _put_github_topics(api: NiquestsGitHubAPI, slug: str, keywords: list[str]) -> None:
+    try:
+        await api.put(f'/repos/{slug}/topics',
+                      data={'names': [k.replace(' ', '-') for k in keywords]})
+        log.info('Applied GitHub repository topics.')
+    except GitHubHTTPException as e:
+        log.warning('Could not apply GitHub repository topics: %s.', e)
+
+
+async def _put_github_security_features(api: NiquestsGitHubAPI, slug: str, *,
+                                        immutable_releases: bool) -> None:
+    for endpoint in ('automated-security-fixes', 'private-vulnerability-reporting',
+                     'vulnerability-alerts'):
+        try:
+            await api.put(f'/repos/{slug}/{endpoint}', data=b'')
+            log.info('Enabled GitHub `%s`.', endpoint)
+        except GitHubHTTPException as e:
+            log.warning('Could not enable GitHub `%s`: %s.', endpoint, e)
+    if immutable_releases:
+        try:
+            await api.put(f'/repos/{slug}/immutable-releases', data=b'')
+            log.info('Enabled GitHub immutable releases.')
+        except GitHubHTTPException as e:
+            log.warning('Could not enable GitHub immutable releases: %s.', e)
+
+
+async def _sync_github_rulesets(api: NiquestsGitHubAPI, slug: str) -> None:
+    existing: dict[str, int] = {}
+    try:
+        async for ruleset in api.getiter(f'/repos/{slug}/rulesets'):
+            if (isinstance(ruleset, dict) and isinstance(ruleset.get('name'), str)
+                    and isinstance(ruleset.get('id'), int)):
+                existing[ruleset['name']] = ruleset['id']
+    except GitHubHTTPException as e:
+        log.warning('Could not list GitHub rulesets: %s.', e)
+        return
+    for ruleset in _DESIRED_GITHUB_RULESETS:
+        name = cast('str', ruleset['name'])
+        try:
+            if name in existing:
+                await api.put(f'/repos/{slug}/rulesets/{existing[name]}', data=ruleset)
+            else:
+                await api.post(f'/repos/{slug}/rulesets', data=ruleset)
+            log.info('Applied GitHub ruleset `%s`.', name)
+        except GitHubHTTPException as e:
+            log.warning('Could not apply GitHub ruleset `%s`: %s.', name, e)
+
+
+async def _bootstrap_github_pages(api: NiquestsGitHubAPI, slug: str, default_branch: str) -> None:
+    if await get_pages_build_type(api, slug) is not None:
+        return
+    try:
+        await api.post(f'/repos/{slug}/pages',
+                       data={'source': {
+                           'branch': default_branch,
+                           'path': '/'
+                       }})
+        log.info('Created GitHub Pages site for `%s`.', slug)
+    except GitHubHTTPException as e:
+        log.warning('Could not create GitHub Pages site: %s.', e)
+
+
+async def configure_github_project(session: niquests.AsyncSession, settings: Settings) -> None:
+    """
+    Configure a GitHub repository's settings, topics, security toggles, rulesets, and Pages.
+
+    Authentication uses the :py:data:`~wiswa.vcs.auth.GITHUB_TOKEN_ENV` environment variable
+    first, then the system keyring (see :py:func:`~wiswa.vcs.auth.get_github_token`).
+
+    Skipped silently when ``settings['using_github']`` is falsy or no token is available.
+    Each sub-operation is wrapped so a single GitHub HTTP failure logs a warning and the
+    rest of the flow continues, matching the behaviour of Wiswa's original
+    ``setup_github_project``.
+
+    Parameters
+    ----------
+    session : niquests.AsyncSession
+        Open async HTTP session used by the gidgethub adapter.
+    settings : wiswa.typing.Settings
+        Merged settings mapping. Reads ``repository_uri``, ``description``, ``homepage``,
+        ``keywords``, ``default_branch``, ``private``, and ``github.immutable_releases``.
+    """
+    if not settings.get('using_github'):
+        log.debug('Not running GitHub setup.')
+        return
+    host = urlparse(settings['repository_uri']).hostname or 'github.com'
+    token = get_github_token(host)
+    if not token:
+        log.warning('No GitHub token (set %s or keyring `wiswa-github:%s`).', GITHUB_TOKEN_ENV,
+                    host)
+        return
+    slug = slug_from_uri(settings['repository_uri'])
+    api = NiquestsGitHubAPI(session, GITHUB_USER_AGENT, oauth_token=token)
+    immutable_releases = bool(settings['github'].get('immutable_releases', False))
+    await _patch_github_repository(api, slug, settings)
+    await _put_github_topics(api, slug, list(settings.get('keywords') or []))
+    await _put_github_security_features(api, slug, immutable_releases=immutable_releases)
+    await _sync_github_rulesets(api, slug)
+    if not settings.get('private', False):
+        default_branch = settings.get('default_branch')
+        if default_branch:
+            await _bootstrap_github_pages(api, slug, default_branch)

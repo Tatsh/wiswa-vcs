@@ -26,6 +26,8 @@ local utils = import 'utils.libsonnet';
       gidgetlab: utils.latestPypiPackageVersionCaret('gidgetlab'),
       keyring: utils.latestPypiPackageVersionCaret('keyring'),
       niquests: utils.latestPypiPackageVersionCaret('niquests'),
+      packaging: utils.latestPypiPackageVersionCaret('packaging'),
+      platformdirs: utils.latestPypiPackageVersionCaret('platformdirs'),
       'wiswa-typing': utils.latestPypiPackageVersionCaret('wiswa-typing'),
     },
     tests+: {
