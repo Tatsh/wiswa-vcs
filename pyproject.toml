@@ -21,7 +21,7 @@ docs = [
   "sphinx-datatables>=1.0.0",
   "sphinx-immaterial>=0.13.9",
   "sphinx>=9.1.0; python_version >= \"3.13\"",
-  "tomlkit>=0.14.0",
+  "tomlkit>=0.15.0",
 ]
 tests = [
   "coveralls>=4.1.0",
@@ -88,7 +88,6 @@ version_files = [
   "docs/index.rst",
   "man/vcs.1",
   "package.json",
-  "snapcraft.yaml",
   "wiswa/vcs/__init__.py",
 ]
 version_provider = "pep621"

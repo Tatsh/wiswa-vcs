@@ -5,6 +5,7 @@ appdir
 appimage
 appinfo
 asyncio
+autmodoule
 autodoc
 automodule
 autouse
@@ -35,8 +36,10 @@ esbenp
 esbonio
 excinfo
 filevers
+flathub
 foxundermoon
 fproject
+fqxz
 fsub
 functools
 genindex

@@ -8,10 +8,17 @@ local utils = import 'utils.libsonnet';
   keywords: ['command line', 'github', 'gitlab', 'mirror', 'sync', 'vcs'],
   primary_module: 'wiswa',
   primary_module_qualified: 'wiswa.vcs',
-  want_appimage: false,
-  want_pyinstaller: false,
   want_main: true,
   want_flatpak: false,
+  publishing+: { flathub: 'sh.tat.wiswa-vcs' },
+  want_snap: false,
+  appimage+: {
+    exclusions: ['wiswa-sync-gh-gl'],
+  },
+  pyinstaller+: {
+    macos_exclusions: ['wiswa-sync-gh-gl'],
+    windows_exclusions: ['wiswa-sync-gh-gl'],
+  },
   python_deps+: {
     main+: {
       anyio: utils.latestPypiPackageVersionCaret('anyio'),

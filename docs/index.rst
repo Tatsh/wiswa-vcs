@@ -11,13 +11,19 @@ Cross-host VCS metadata sync and mirroring helpers used by Wiswa.
 
 .. only:: html
 
+   .. autmodoule:: wiswa.vcs.auth
+      :members:
+
+   .. automodule:: wiswa.vcs.configure
+      :members:
+
    .. automodule:: wiswa.vcs.github
       :members:
 
    .. automodule:: wiswa.vcs.gitlab
       :members:
 
-   .. automodule:: wiswa.vcs.utils
+   .. automodule:: wiswa.vcs.sync
       :members:
 
    Indices and tables

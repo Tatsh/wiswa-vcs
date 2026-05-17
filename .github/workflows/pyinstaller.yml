@@ -24,7 +24,23 @@ jobs:
           project_name=$(tomlq -r '.project.urls.repository|split("/")[-1]' pyproject.toml)
           vers="$(tomlq -r '.project.version|split(".")|map(tonumber)|@csv' pyproject.toml),0"
           version=$(tomlq -r .project.version pyproject.toml)
+          macos_exclusions=(
+            wiswa-sync-gh-gl
+          )
+          windows_exclusions=(
+            wiswa-sync-gh-gl
+          )
           while IFS=$' ' read -r script_name python_path func_name; do
+              if [[ "${{ matrix.os }}" == windows* ]] &&
+                  printf '%s\0' "${windows_exclusions[@]}" | grep -Fqxz -- "${script_name}"; then
+                  echo "Skipping ${script_name} on Windows."
+                  continue
+              fi
+              if [[ "${{ matrix.os }}" == macos* ]] &&
+                  printf '%s\0' "${macos_exclusions[@]}" | grep -Fqxz -- "${script_name}"; then
+                  echo "Skipping ${script_name} on macOS."
+                  continue
+              fi
               func_name="${func_name#"${func_name%%[![:space:]]*}"}"
               func_name="${func_name%"${func_name##*[![:space:]]}"}"
               cat > temp_script.py <<EOF
