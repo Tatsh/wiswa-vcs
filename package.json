@@ -1,8 +1,8 @@
 {
   "_wiswa": {
     "commandLine": "wiswa",
-    "lastRun": "2026-05-15T07:56:30Z",
-    "version": "eb1f7cf-dirty"
+    "lastRun": "2026-05-17T04:59:53Z",
+    "version": "388f5cf-dirty"
   },
   "contributors": ["Andrew Udvare <audvare@gmail.com>"],
   "cspell": {
@@ -50,7 +50,7 @@
     "prettier-plugin-toml": "^2.0.6",
     "pyright": "^1.1.409"
   },
-  "files": ["LICENSE.txt", "README.md"],
+  "files": ["LICENSE.txt", "README.md", "man/wiswa-vcs.1"],
   "homepage": "https://tatsh.github.io/wiswa-vcs/",
   "keywords": ["command line", "github", "gitlab", "mirror", "sync", "vcs"],
   "license": "MIT",
@@ -108,6 +108,7 @@
     "dict:update": "rm -f .vscode/dictionary.txt && cspell lint --no-progress --no-summary --unique --words-only | tr '[:upper:]' '[:lower:]' | sort -u > .vscode/dictionary.txt",
     "format": "prettier --write . && uv run yapf --in-place --parallel --recursive . && markdownlint-cli2 --config package.json --configPointer /markdownlint-cli2 --fix",
     "gen-docs": "uv run sphinx-build --fresh-env --fail-on-warning --builder html --doctree-dir docs/_build/doctrees --define language=en docs docs/_build/html",
+    "gen-manpage": "uv run sphinx-build --fresh-env --fail-on-warning --builder man --doctree-dir docs/_build/doctrees --define language=en docs man",
     "mypy": "uv run mypy",
     "qa": "yarn mypy . && yarn pyright && uv run ty check && yarn ruff . && yarn check-spelling && yarn check-formatting",
     "regen": "uv run wiswa",

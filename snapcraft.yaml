@@ -1,0 +1,34 @@
+apps:
+  wiswa-vcs:
+    command: 'bin/wiswa-vcs'
+    plugs:
+      - 'home'
+      - 'network'
+      - 'network-bind'
+base: 'core24'
+confinement: 'strict'
+contact: 'https://github.com/Tatsh/wiswa-vcs/issues'
+description: 'Cross-host VCS metadata sync and mirroring helpers used by Wiswa.'
+donation: 'https://buymeacoffee.com/Tatsh'
+grade: 'stable'
+issues: 'https://github.com/Tatsh/wiswa-vcs/issues'
+license: 'MIT'
+name: 'wiswa-vcs'
+parts:
+  wiswa-vcs:
+    build-packages: []
+    plugin: 'python'
+    python-packages:
+      - '.'
+    source: '.'
+    stage-packages: []
+platforms:
+  amd64:
+    build-on: 'amd64'
+  arm64:
+    build-on: 'arm64'
+source-code: 'https://github.com/Tatsh/wiswa-vcs'
+summary: 'Cross-host VCS metadata sync and mirroring helpers used by Wiswa.'
+title: 'wiswa-vcs'
+version: '0.0.0'
+website: 'https://tatsh.github.io/wiswa-vcs/'

@@ -17,7 +17,7 @@ docs = [
   "enum-tools[sphinx]>=0.13.0",
   "esbonio>=2.0.0",
   "restructuredtext-lint>=2.0.2",
-  "sphinx-click>=6.0.0",
+  "sphinx-click>=6.2.0",
   "sphinx-datatables>=1.0.0",
   "sphinx-immaterial>=0.13.9",
   "sphinx>=9.1.0; python_version >= \"3.13\"",
@@ -50,8 +50,10 @@ dependencies = [
   "click>=8.3.3",
   "gidgethub>=5.4.0",
   "gidgetlab>=2.1.1",
+  "keyring>=25.7.0",
   "niquests>=3.18.7",
   "typing-extensions>=4.15.0",
+  "wiswa-typing>=0.0.1",
 ]
 description = "Cross-host VCS metadata sync and mirroring helpers used by Wiswa."
 keywords = ["command line", "github", "gitlab", "mirror", "sync", "vcs"]
@@ -84,25 +86,27 @@ version_files = [
   "README.md",
   "docs/badges.rst",
   "docs/index.rst",
+  "man/vcs.1",
   "package.json",
+  "snapcraft.yaml",
   "wiswa/vcs/__init__.py",
 ]
 version_provider = "pep621"
 
 [tool.coverage.report]
 exclude_also = ["if TYPE_CHECKING:"]
-omit = ["conftest.py", "tests.py", "tests/*/test_*.py", "tests/test_*.py"]
+omit = ["conftest.py", "tests.py", "tests/*/test_*.py", "tests/test_*.py", "wiswa/vcs/__main__.py"]
 show_missing = true
 
 [tool.coverage.run]
 branch = true
-omit = ["conftest.py", "tests.py", "tests/*/test_*.py", "tests/test_*.py"]
+omit = ["conftest.py", "tests.py", "tests/*/test_*.py", "tests/test_*.py", "wiswa/vcs/__main__.py"]
 
 [tool.doc8]
 max-line-length = 100
 
 [tool.hatch.build.targets.sdist]
-include = ["wiswa", "tests"]
+include = ["wiswa", "man", "tests"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["wiswa"]
@@ -180,6 +184,9 @@ max-complexity = 20
 [tool.ruff.lint.pep8-naming]
 extend-ignore-names = ["test_*"]
 
+[tool.ruff.lint.per-file-ignores]
+"wiswa/vcs/main.py" = ["PLR0913"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
 
@@ -195,6 +202,9 @@ max-statements = 100
 [tool.uv]
 default-groups = "all"
 exclude-newer = "1 week"
+
+[tool.uv.exclude-newer-package]
+wiswa-typing = false
 
 [tool.yapf]
 align_closing_bracket_with_visual_indent = true

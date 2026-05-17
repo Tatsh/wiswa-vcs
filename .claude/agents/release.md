@@ -83,6 +83,9 @@ with the changelog.
 
 1. **Run `uv lock`** to update `uv.lock` with the new version.
 
+1. **Generate and verify man pages.** Run `yarn gen-manpage` and then `git add man/`. Confirm
+   the embedded `.TH` line shows version `NEW` and today's date; if not, stop and report.
+
 1. **Commit the version bump outside the sandbox.** Stage all changed files and commit with
    `git commit -S -s -m 'bump: vOLD → vNEW'` (replace
    OLD/NEW with actual versions). Run outside the sandbox because the pre-commit hooks invoked
