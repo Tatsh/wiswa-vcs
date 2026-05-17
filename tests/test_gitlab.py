@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, call
 
 from gidgetlab.exceptions import HTTPException
+from wiswa.typing.gitlab import Badge
 from wiswa.vcs.gitlab import (
     MAINTAINER_ACCESS_LEVEL,
     MIRROR_PROJECT_SETTINGS_OVERRIDES,
@@ -20,7 +21,6 @@ from wiswa.vcs.gitlab import (
     sync_badges,
     trigger_housekeeping,
 )
-from wiswa.vcs.typing import Badge
 import pytest
 
 if TYPE_CHECKING:

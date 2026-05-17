@@ -21,9 +21,8 @@ from . import __version__
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from wiswa.typing import github as gh_types
     import niquests
-
-    from .typing import GitHubRepository
 
 __all__ = (
     'USER_AGENT',
@@ -127,7 +126,7 @@ def slug_from_uri(uri: str) -> str:
     return urlparse(uri).path.strip('/').removesuffix('.git')
 
 
-async def fetch_repository(api: gh_abc.GitHubAPI, slug: str) -> GitHubRepository:
+async def fetch_repository(api: gh_abc.GitHubAPI, slug: str) -> gh_types.Repository:
     """
     Return the GitHub repository metadata for *slug*.
 
@@ -140,10 +139,10 @@ async def fetch_repository(api: gh_abc.GitHubAPI, slug: str) -> GitHubRepository
 
     Returns
     -------
-    GitHubRepository
+    wiswa.typing.github.Repository
         Decoded JSON body from ``GET /repos/{slug}``.
     """
-    return cast('GitHubRepository', dict(await api.getitem(f'/repos/{slug}')))
+    return cast('gh_types.Repository', dict(await api.getitem(f'/repos/{slug}')))
 
 
 async def protected_branch_names(api: gh_abc.GitHubAPI, slug: str) -> set[str]:

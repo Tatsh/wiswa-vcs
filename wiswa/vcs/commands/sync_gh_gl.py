@@ -8,20 +8,19 @@ import json
 import logging
 
 from bascom import setup_logging
+from wiswa.vcs.sync import sync_github_to_gitlab
 import click
 import niquests
 
-from ..sync import sync_github_to_gitlab
-
 if TYPE_CHECKING:
-    from ..typing import GitLabConfig
+    from wiswa.typing.gitlab import RemoteSettings
 
 __all__ = ('main',)
 
 log = logging.getLogger(__name__)
 
 
-def _load_gitlab_config(raw: str | None) -> GitLabConfig:
+def _load_gitlab_config(raw: str | None) -> RemoteSettings:
     if not raw:
         return {}
     if raw.lstrip().startswith('{'):
@@ -47,7 +46,7 @@ def _load_gitlab_config(raw: str | None) -> GitLabConfig:
     if not isinstance(loaded, dict):
         msg = f'--gitlab-config must decode to a JSON object (from {source}).'
         raise click.BadParameter(msg)
-    return cast('GitLabConfig', loaded)
+    return cast('RemoteSettings', loaded)
 
 
 @click.command(context_settings={'help_option_names': ('-h', '--help')})

@@ -22,15 +22,14 @@ from . import __version__
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
 
-    import niquests
-
-    from .typing import (
+    from wiswa.typing.gitlab import (
         Badge,
         BranchProtectionOverrides,
         ProjectApprovals,
         ProjectSettings,
         PushRules,
     )
+    import niquests
 
 __all__ = (
     'MAINTAINER_ACCESS_LEVEL',
@@ -40,10 +39,13 @@ __all__ = (
     'apply_project_settings',
     'base_url',
     'encode_project_path',
+    'fetch_project_default_branch',
     'parse_badges',
+    'patch_protected_branch',
     'project_path',
     'protect_branches',
     'protect_tags',
+    'repository_uri_hostname',
     'sync_badges',
     'trigger_housekeeping',
 )
@@ -298,7 +300,7 @@ async def protect_branches(api: gl_abc.GitLabAPI,
     async for branch in api.getiter(f'/projects/{encoded_project_path}/protected_branches'):
         if name := branch.get('name'):
             existing.add(name)
-    extras: dict[str, object] = dict(overrides) if overrides else {}
+    extras: dict[str, object] = {**overrides} if overrides else {}
     for name in sorted(set(names) - existing):
         body: dict[str, object] = {
             'merge_access_level': MAINTAINER_ACCESS_LEVEL,
@@ -387,3 +389,71 @@ async def trigger_housekeeping(api: gl_abc.GitLabAPI, encoded_project_path: str)
     """
     await api.post(f'/projects/{encoded_project_path}/housekeeping', data=None)
     log.info('Triggered housekeeping.')
+
+
+def repository_uri_hostname(uri: str) -> str:
+    """
+    Return the hostname portion of a GitLab repository URI.
+
+    Parameters
+    ----------
+    uri : str
+        A repository URI such as ``https://gitlab.example.com/group/project.git``.
+
+    Returns
+    -------
+    str
+        The bare hostname, or an empty string when *uri* has no host component.
+    """
+    from urllib.parse import urlparse  # noqa: PLC0415
+
+    return urlparse(uri).hostname or ''
+
+
+async def fetch_project_default_branch(api: gl_abc.GitLabAPI,
+                                       encoded_project_path: str) -> str | None:
+    """
+    Return the GitLab project's default branch name.
+
+    Parameters
+    ----------
+    api : gidgetlab.abc.GitLabAPI
+        An authenticated gidgetlab client.
+    encoded_project_path : str
+        Project identifier returned by :py:func:`encode_project_path`.
+
+    Returns
+    -------
+    str | None
+        Default branch name reported by ``GET /projects/:id``, or :py:data:`None` when the
+        project payload does not include one.
+    """
+    project = await api.getitem(f'/projects/{encoded_project_path}')
+    if isinstance(project, dict) and isinstance((branch := project.get('default_branch')), str):
+        return branch
+    return None
+
+
+async def patch_protected_branch(api: gl_abc.GitLabAPI, encoded_project_path: str, branch_name: str,
+                                 body: BranchProtectionOverrides) -> None:
+    """
+    Patch an existing protected branch on a GitLab project.
+
+    Parameters
+    ----------
+    api : gidgetlab.abc.GitLabAPI
+        An authenticated gidgetlab client.
+    encoded_project_path : str
+        Project identifier returned by :py:func:`encode_project_path`.
+    branch_name : str
+        Name of the protected branch to update; URL-encoded internally.
+    body : BranchProtectionOverrides
+        PATCH body applied to the protected branch (for example
+        ``{'allow_force_push': 'true'}``).
+    """
+    from urllib.parse import quote  # noqa: PLC0415
+
+    encoded_branch = quote(branch_name, safe='')
+    await api.patch(f'/projects/{encoded_project_path}/protected_branches/{encoded_branch}',
+                    data=dict(body))
+    log.info('Patched protected branch `%s`.', branch_name)

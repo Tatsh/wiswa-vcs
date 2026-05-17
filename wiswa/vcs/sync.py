@@ -3,23 +3,24 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 import logging
-import os
 
 import anyio
 
 from . import github as github_api, gitlab as gitlab_api
 
 if TYPE_CHECKING:
-    import niquests
+    import os
 
-    from .typing import GitHubRepository, GitLabConfig, ProjectSettings
+    from wiswa.typing.github import Repository
+    from wiswa.typing.gitlab import ProjectSettings, RemoteSettings
+    import niquests
 
 __all__ = ('sync_github_to_gitlab',)
 
 log = logging.getLogger(__name__)
 
 
-def _merge_project_settings(base: ProjectSettings | None, github_repo: GitHubRepository, *,
+def _merge_project_settings(base: ProjectSettings | None, github_repo: Repository, *,
                             apply_mirror_overrides: bool) -> ProjectSettings:
     settings: ProjectSettings = base.copy() if base is not None else {}
     settings['description'] = github_repo.get('description') or ''
@@ -38,7 +39,7 @@ async def sync_github_to_gitlab(session: niquests.AsyncSession,
                                 gitlab_repo_uri: str,
                                 gitlab_token: str,
                                 default_branch: str,
-                                gitlab_config: GitLabConfig | None = None,
+                                gitlab_config: RemoteSettings | None = None,
                                 badges_file: anyio.Path | os.PathLike[str] | None = None,
                                 apply_mirror_overrides: bool = True) -> None:
     """
@@ -59,7 +60,7 @@ async def sync_github_to_gitlab(session: niquests.AsyncSession,
         GitLab personal access token with the ``api`` scope.
     default_branch : str
         Default branch name; always added to the protected branches list.
-    gitlab_config : GitLabConfig | None
+    gitlab_config : wiswa.typing.gitlab.RemoteSettings | None
         Opinionated GitLab tables (``project_settings``, ``push_rules``, ``project_approvals``,
         ``default_branch_protection``). Empty dictionaries are treated as absent.
     badges_file : anyio.Path | os.PathLike[str] | None
