@@ -1,14 +1,13 @@
 """Tests for :py:mod:`wiswa.vcs.commands.sync_gh_gl`."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
 from wiswa.vcs.commands.sync_gh_gl import main
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from click.testing import CliRunner
     from pytest_mock import MockerFixture
 
@@ -124,6 +123,29 @@ def test_sync_gh_gl_aborts_on_sync_failure(runner: CliRunner, mocker: MockerFixt
     _patch_session(mocker)
     result = runner.invoke(main, list(_BASE_ARGS))
     assert result.exit_code != 0
+
+
+def test_sync_gh_gl_rejects_unreadable_gitlab_config_file(runner: CliRunner, mocker: MockerFixture,
+                                                          tmp_path: Path) -> None:
+    config_file = tmp_path / 'gitlab-config.json'
+    config_file.write_text('{}', encoding='utf-8')
+    mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
+    _patch_session(mocker)
+    mocker.patch.object(Path, 'read_text', side_effect=OSError('permission denied'))
+    result = runner.invoke(main, [*_BASE_ARGS, '--gitlab-config', str(config_file)])
+    assert result.exit_code != 0
+    assert 'read' in result.output.lower() or 'invalid' in result.output.lower()
+
+
+def test_sync_gh_gl_rejects_non_dict_gitlab_config_file(runner: CliRunner, mocker: MockerFixture,
+                                                        tmp_path: Path) -> None:
+    config_file = tmp_path / 'gitlab-config.json'
+    config_file.write_text('[1, 2, 3]', encoding='utf-8')
+    mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab', new=AsyncMock())
+    _patch_session(mocker)
+    result = runner.invoke(main, [*_BASE_ARGS, '--gitlab-config', str(config_file)])
+    assert result.exit_code != 0
+    assert 'json object' in result.output.lower() or 'invalid' in result.output.lower()
 
 
 def test_sync_gh_gl_reads_env_vars(runner: CliRunner, mocker: MockerFixture) -> None:

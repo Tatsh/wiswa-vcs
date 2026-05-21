@@ -13,8 +13,6 @@ The public surface is intentionally small and composable:
   falls back to ``git checkout`` when ``git restore`` fails.
 * :py:func:`maybe_revert` is a conditional revert that composes the read primitives with
   a user-supplied predicate over the diff text.
-* :py:func:`maybe_revert_uv_lock` is the canonical uv-lock convenience wrapper that
-  combines :py:func:`maybe_revert` with an ``exclude-newer``-only predicate.
 """
 from __future__ import annotations
 
@@ -22,21 +20,13 @@ from typing import TYPE_CHECKING
 import asyncio
 import logging
 import os
-import re
 
 import anyio
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
-__all__ = (
-    'GIT_CONFIG_NO_HOOKS',
-    'changed_files',
-    'diff',
-    'maybe_revert',
-    'maybe_revert_uv_lock',
-    'restore_from_head',
-)
+__all__ = ('GIT_CONFIG_NO_HOOKS', 'changed_files', 'diff', 'maybe_revert', 'restore_from_head')
 
 log = logging.getLogger(__name__)
 
@@ -49,8 +39,6 @@ from running.
 :meta hide-value:
 """
 
-_RE_UV_LOCK_EXCLUDE_NEWER = re.compile(r'^[+-]\s*exclude-newer\s*=')
-
 
 def _as_anyio_path(root: anyio.Path | os.PathLike[str] | str | None) -> anyio.Path:
     if root is None:
@@ -59,12 +47,12 @@ def _as_anyio_path(root: anyio.Path | os.PathLike[str] | str | None) -> anyio.Pa
 
 
 async def _run(cmd: Iterable[str], *, cwd: anyio.Path) -> tuple[int, bytes, bytes]:
-    proc = await asyncio.create_subprocess_exec(*cmd,
-                                                cwd=str(cwd),
-                                                stdout=asyncio.subprocess.PIPE,
-                                                stderr=asyncio.subprocess.PIPE)
-    stdout, stderr = await proc.communicate()
-    return proc.returncode or 0, stdout or b'', stderr or b''
+    process = await asyncio.create_subprocess_exec(*cmd,
+                                                   cwd=str(cwd),
+                                                   stdout=asyncio.subprocess.PIPE,
+                                                   stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+    return process.returncode or 0, stdout or b'', stderr or b''
 
 
 async def changed_files(*, root: anyio.Path | os.PathLike[str] | str | None = None) -> set[str]:
@@ -220,62 +208,3 @@ async def maybe_revert(path: str | os.PathLike[str],
         if not should_revert(await diff(path, root=cwd)):
             return False
     return await restore_from_head(path, root=cwd, bypass_hooks=bypass_hooks)
-
-
-def _uv_lock_diff_is_only_exclude_newer(diff_text: str) -> bool:
-    """
-    Return :py:data:`True` when a ``uv.lock`` diff touches only ``exclude-newer`` lines.
-
-    Parameters
-    ----------
-    diff_text : str
-        Unified diff output, typically from ``git diff -- uv.lock``.
-
-    Returns
-    -------
-    bool
-        :py:data:`True` when every added or removed line matches
-        ``exclude-newer = ...``; :py:data:`False` for empty diffs or any other change.
-    """
-    if not diff_text.strip():
-        return False
-    saw_exclude_newer_change = False
-    for line in diff_text.splitlines():
-        if line.startswith(('diff --git ', 'index ', '--- ', '+++ ', '@@', '\\')) or not line:
-            continue
-        marker = line[0]
-        if marker == ' ':
-            continue
-        if marker in '+-':
-            if not _RE_UV_LOCK_EXCLUDE_NEWER.match(line):
-                return False
-            saw_exclude_newer_change = True
-            continue
-        return False
-    return saw_exclude_newer_change
-
-
-async def maybe_revert_uv_lock(root: anyio.Path | os.PathLike[str] | str | None = None) -> bool:
-    """
-    Restore ``uv.lock`` from ``HEAD`` when its drift is purely incidental.
-
-    Convenience wrapper around :py:func:`maybe_revert` with the
-    ``exclude-newer``-only predicate. ``uv lock --upgrade`` can rewrite ``uv.lock`` without
-    any meaningful project change (for example when the user ``uv.toml`` rolls the
-    ``exclude-newer`` cut-off forward); this restores the lock so the run does not leave
-    an incidental diff.
-
-    Parameters
-    ----------
-    root : anyio.Path | os.PathLike[str] | str | None
-        Working directory containing ``uv.lock`` and ``.git``. Defaults to the current
-        working directory.
-
-    Returns
-    -------
-    bool
-        :py:data:`True` when ``uv.lock`` was restored, :py:data:`False` otherwise.
-    """
-    return await maybe_revert('uv.lock',
-                              should_revert=_uv_lock_diff_is_only_exclude_newer,
-                              root=root)

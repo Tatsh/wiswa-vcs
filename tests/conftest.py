@@ -6,6 +6,7 @@ from typing import NoReturn
 import os
 
 from click.testing import CliRunner
+from wiswa.vcs.github import clear_tag_cache
 import pytest
 
 if os.getenv('_PYTEST_RAISE', '0') != '0':  # pragma no cover
@@ -33,6 +34,19 @@ def recover_stale_process_cwd(request: pytest.FixtureRequest) -> None:
         Path.cwd()
     except FileNotFoundError:
         os.chdir(Path(request.config.rootpath))
+
+
+@pytest.fixture(autouse=True)
+def reset_github_tag_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Drop the in-process and on-disk GitHub tag cache before each test.
+
+    Redirects ``XDG_CACHE_HOME`` and ``XDG_CONFIG_HOME`` to ``tmp_path`` so tests cannot
+    leak cache state between each other, then clears the in-process cache.
+    """
+    monkeypatch.setenv('XDG_CACHE_HOME', str(tmp_path / 'xdg-cache'))
+    monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path / 'xdg-config'))
+    clear_tag_cache()
 
 
 @pytest.fixture

@@ -13,46 +13,59 @@ shared with Wiswa itself. When the GitHub API responds with ``403`` or ``429``
 (rate-limited), the disk cache is consulted as a last-resort fallback. The cache
 deliberately lives under ``wiswa`` (not ``wiswa-vcs``) so a user with Wiswa already
 installed pays no cold-cache cost the first time they invoke :py:mod:`wiswa.vcs`.
+
+This module deliberately does **not** know about any specific repository. Callers that
+need stricter tag rules for a particular owner/repo (for example ``google/yapf``, whose
+tags must always start with ``v``) pass ``require_v_prefix=True`` to
+:py:func:`latest_release_tag`.
 """
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 from urllib.parse import urlparse
 import asyncio
+import getpass
 import json
 import logging
+import os
 import re
 
 from gidgethub import HTTPException, abc as gh_abc
 from typing_extensions import override
+import keyring
+import keyring.errors
 import platformdirs
 
 from . import __version__
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterable, Mapping
     from pathlib import Path
 
-    from wiswa.typing import github as gh_types
+    from packaging.version import Version
     import niquests
 
-__all__ = (
-    'CHANGELOG_KEEP_A_CHANGELOG_FALLBACK_URL',
-    'CHANGELOG_SEMVER_SPEC_FALLBACK_URL',
-    'GITHUB_API_HEADERS',
-    'USER_AGENT',
-    'NiquestsGitHubAPI',
-    'clear_tag_cache',
-    'fetch_repository',
-    'get_pages_build_type',
-    'latest_release_tag',
-    'protected_branch_names',
-    'protected_tag_patterns',
-    'ref_commit_sha',
-    'resolve_changelog_urls',
-    'slug_from_uri',
-)
+    from .typing import Repository, RepositoryConfig, Ruleset
+
+__all__ = ('GITHUB_API_HEADERS', 'GITHUB_TOKEN_ENV', 'USER_AGENT', 'NiquestsGitHubAPI',
+           'PagesBuildType', 'clear_tag_cache', 'configure_project', 'fetch_repository',
+           'get_github_token', 'get_pages_build_type', 'latest_release_tag',
+           'protected_branch_names', 'protected_tag_patterns', 'ref_commit_sha', 'slug_from_uri')
+
+GITHUB_TOKEN_ENV = 'GITHUB_TOKEN'  # noqa: S105
+"""
+Environment variable consulted first when resolving a GitHub personal access token.
+
+:meta hide-value:
+"""
+
+PagesBuildType: TypeAlias = Literal['legacy', 'workflow']
+"""
+Possible values for a GitHub Pages site's ``build_type`` field.
+
+:meta hide-value:
+"""
 
 log = logging.getLogger(__name__)
 
@@ -76,17 +89,6 @@ Use these when bypassing :py:class:`NiquestsGitHubAPI` (for example to request a
 
 :meta hide-value:
 """
-CHANGELOG_KEEP_A_CHANGELOG_FALLBACK_URL = 'https://keepachangelog.com/en/1.1.0/'
-"""Fallback URL for the Keep a Changelog specification when GitHub lookup fails.
-
-:meta hide-value:
-"""
-CHANGELOG_SEMVER_SPEC_FALLBACK_URL = 'https://semver.org/spec/v2.0.0.html'
-"""Fallback URL for the Semantic Versioning specification when GitHub lookup fails.
-
-:meta hide-value:
-"""
-
 _GITHUB_TAG_DISK_FILENAME = 'github_tag_cache.json'
 _GITHUB_RELEASES_PAGE_CAP = 20
 _GITHUB_RELEASES_PER_PAGE = 100
@@ -155,6 +157,42 @@ class NiquestsGitHubAPI(gh_abc.GitHubAPI):
         await asyncio.sleep(seconds)
 
 
+def get_github_token(host: str) -> str | None:
+    """
+    Resolve a GitHub personal access token from the environment or host-scoped keyring.
+
+    Looks first at the :py:data:`GITHUB_TOKEN_ENV` environment variable. Falls back to the
+    system keyring, trying the service name ``wiswa-github:<host>`` with the OS username
+    first, and the legacy ``tmu-github-api`` service second (so credentials stored by older
+    Wiswa installations continue to work).
+
+    Parameters
+    ----------
+    host : str
+        Hostname of the GitHub instance, for example ``github.com`` or
+        ``github.example.com``. An empty string disables keyring lookup.
+
+    Returns
+    -------
+    str | None
+        The resolved token, or :py:data:`None` when no token is available and the keyring
+        backend is missing or empty.
+    """
+    if token := os.environ.get(GITHUB_TOKEN_ENV):
+        return token
+    if not host:
+        return None
+    user = getpass.getuser()
+    try:
+        token = keyring.get_password(f'wiswa-github:{host}', user)
+        if token:
+            return token
+        return keyring.get_password('tmu-github-api', user)
+    except keyring.errors.NoKeyringError:
+        log.warning('No keyring backend available.')
+        return None
+
+
 def slug_from_uri(uri: str) -> str:
     """
     Return the ``owner/repo`` slug from a GitHub repository URI.
@@ -175,7 +213,7 @@ def slug_from_uri(uri: str) -> str:
     return urlparse(uri).path.strip('/').removesuffix('.git')
 
 
-async def fetch_repository(api: gh_abc.GitHubAPI, slug: str) -> gh_types.Repository:
+async def fetch_repository(api: gh_abc.GitHubAPI, slug: str) -> Repository:
     """
     Return the GitHub repository metadata for *slug*.
 
@@ -188,10 +226,10 @@ async def fetch_repository(api: gh_abc.GitHubAPI, slug: str) -> gh_types.Reposit
 
     Returns
     -------
-    wiswa.typing.github.Repository
+    Repository
         Decoded JSON body from ``GET /repos/{slug}``.
     """
-    return cast('gh_types.Repository', dict(await api.getitem(f'/repos/{slug}')))
+    return cast('Repository', dict(await api.getitem(f'/repos/{slug}')))
 
 
 async def protected_branch_names(api: gh_abc.GitHubAPI, slug: str) -> set[str]:
@@ -258,10 +296,7 @@ async def protected_tag_patterns(api: gh_abc.GitHubAPI, slug: str) -> set[str]:
     return patterns
 
 
-# TODO(wiswa-typing): swap inline Literal for wiswa.typing.github.PagesBuildType once a
-# wiswa-typing release publishes it.
-async def get_pages_build_type(api: gh_abc.GitHubAPI,
-                               slug: str) -> Literal['legacy', 'workflow'] | None:
+async def get_pages_build_type(api: gh_abc.GitHubAPI, slug: str) -> PagesBuildType | None:
     """
     Return the GitHub Pages ``build_type`` for *slug*.
 
@@ -274,7 +309,7 @@ async def get_pages_build_type(api: gh_abc.GitHubAPI,
 
     Returns
     -------
-    Literal['legacy', 'workflow'] | None
+    PagesBuildType | None
         ``'legacy'`` when Pages deploys from a branch, ``'workflow'`` when it uses GitHub
         Actions, or :py:data:`None` when the API call fails or the field is missing.
     """
@@ -285,7 +320,7 @@ async def get_pages_build_type(api: gh_abc.GitHubAPI,
         return None
     build_type = pages.get('build_type') if isinstance(pages, dict) else None
     if build_type in {'legacy', 'workflow'}:
-        return cast('Literal["legacy", "workflow"]', build_type)
+        return cast('PagesBuildType', build_type)
     return None
 
 
@@ -355,32 +390,28 @@ def _version_from_tag(tag: str) -> object | None:
         return None
 
 
-def _tag_allowed_for_policy(tag: str, *, allow_suffixes: bool, owner: str, repo: str) -> bool:
-    if owner == 'google' and repo == 'yapf':
-        if not tag.startswith('v'):
-            return False
-        return allow_suffixes or bool(re.search(r'\d$', tag))
+def _tag_allowed_for_policy(tag: str, *, allow_suffixes: bool, require_v_prefix: bool) -> bool:
+    if require_v_prefix and not tag.startswith('v'):
+        return False
     if not allow_suffixes:
         return tag.startswith('v') and bool(re.search(r'\d$', tag))
     return True
 
 
-async def _newest_release_tag_before_cutoff(session: niquests.AsyncSession, owner: str, repo: str,
-                                            *, cutoff: datetime,
-                                            allow_suffixes: bool) -> tuple[str | None, int | None]:
-    from packaging.version import Version  # noqa: PLC0415
-
+async def _newest_release_tag_before_cutoff(
+        session: niquests.AsyncSession, owner: str, repo: str, *, cutoff: datetime,
+        allow_suffixes: bool, require_v_prefix: bool) -> tuple[str | None, int | None]:
     best: tuple[Version, str] | None = None
     for page in range(1, _GITHUB_RELEASES_PAGE_CAP + 1):
-        resp = await session.get(
+        r = await session.get(
             f'https://api.github.com/repos/{owner}/{repo}/releases'
             f'?per_page={_GITHUB_RELEASES_PER_PAGE}&page={page}',
             timeout=15)
-        if (status := _blocked_status(resp)) is not None:
+        if (status := _blocked_status(r)) is not None:
             return None, status
-        if not resp.ok:
+        if not r.ok:
             break
-        batch = resp.json()
+        batch = r.json()
         if not isinstance(batch, list) or not batch:
             break
         for rel in batch:
@@ -395,7 +426,7 @@ async def _newest_release_tag_before_cutoff(session: niquests.AsyncSession, owne
             except ValueError:
                 continue
             if pub_dt > cutoff or not _tag_allowed_for_policy(
-                    tag, allow_suffixes=allow_suffixes, owner=owner, repo=repo):
+                    tag, allow_suffixes=allow_suffixes, require_v_prefix=require_v_prefix):
                 continue
             ver = _version_from_tag(tag)
             if (ver is None or getattr(ver, 'is_prerelease', False)
@@ -415,6 +446,7 @@ async def latest_release_tag(session: niquests.AsyncSession,
                              *,
                              skip_releases: bool = False,
                              allow_suffixes: bool = True,
+                             require_v_prefix: bool = False,
                              min_release_age_minutes: int | None = None) -> str:
     """
     Return the latest published release tag for ``owner/repo`` on GitHub.
@@ -438,8 +470,11 @@ async def latest_release_tag(session: niquests.AsyncSession,
         directly. Useful for repositories that publish tags but not GitHub releases.
     allow_suffixes : bool
         When :py:data:`False`, only consider tags that start with ``v`` and end in a digit
-        (filters out things like ``v1.0-beta``). The ``google/yapf`` repository is always
-        constrained to ``v``-prefixed tags regardless of this flag.
+        (filters out things like ``v1.0-beta``).
+    require_v_prefix : bool
+        When :py:data:`True`, only consider tags that start with ``v`` regardless of
+        *allow_suffixes*. Use this for repositories whose tag scheme allows non-``v``
+        names that should not be picked (for example ``google/yapf``).
     min_release_age_minutes : int | None
         When set, only releases published at least this many minutes ago are considered
         (mirrors the npm minimum-release-age gate). When :py:data:`None`, no age gate is
@@ -456,8 +491,10 @@ async def latest_release_tag(session: niquests.AsyncSession,
         If no tag can be determined and the disk cache has no entry to fall back on.
     """
     key = f'gh_{owner}/{repo}_{skip_releases}_{allow_suffixes}'
+    if require_v_prefix:
+        key += '_vp'
     if min_release_age_minutes is not None:
-        key += f'_minage{min_release_age_minutes}'
+        key += f'_min_age{min_release_age_minutes}'
     if key in _tag_cache:
         return _tag_cache[key]
     version: str | None = None
@@ -468,7 +505,8 @@ async def latest_release_tag(session: niquests.AsyncSession,
                                                                 owner,
                                                                 repo,
                                                                 cutoff=cutoff,
-                                                                allow_suffixes=allow_suffixes)
+                                                                allow_suffixes=allow_suffixes,
+                                                                require_v_prefix=require_v_prefix)
         if status is not None:
             blocked_status = status
         if gated:
@@ -478,20 +516,20 @@ async def latest_release_tag(session: niquests.AsyncSession,
                 'No GitHub release for `%s/%s` predates the %d-minute age gate; falling back.',
                 owner, repo, min_release_age_minutes)
     if not version and not skip_releases:
-        resp = await session.get(f'https://api.github.com/repos/{owner}/{repo}/releases/latest',
-                                 timeout=15)
-        if (status := _blocked_status(resp)) is not None:
+        r = await session.get(f'https://api.github.com/repos/{owner}/{repo}/releases/latest',
+                              timeout=15)
+        if (status := _blocked_status(r)) is not None:
             blocked_status = status
-        if resp.ok:
-            version = resp.json().get('tag_name')
+        if r.ok:
+            version = r.json().get('tag_name')
     if not version:
-        resp = await session.get(f'https://api.github.com/repos/{owner}/{repo}/tags', timeout=15)
-        if (status := _blocked_status(resp)) is not None:
+        r = await session.get(f'https://api.github.com/repos/{owner}/{repo}/tags', timeout=15)
+        if (status := _blocked_status(r)) is not None:
             blocked_status = status
-        if resp.ok:
-            tags = [x['name'] for x in resp.json() if 'name' in x]
+        if r.ok:
+            tags = [x['name'] for x in r.json() if 'name' in x]
             if tags:
-                if not allow_suffixes or (owner == 'google' and repo == 'yapf'):
+                if not allow_suffixes or require_v_prefix:
                     version = next((t for t in tags if t.startswith('v') and (
                         re.search(r'\d$', t) if not allow_suffixes else True)), None)
                 else:
@@ -499,8 +537,8 @@ async def latest_release_tag(session: niquests.AsyncSession,
     if not version:
         if blocked_status is not None and (cached := _read_disk_store().get(key)):
             log.warning(
-                'Using disk-cached GitHub tag `%s` for `%s/%s` after HTTP %d (likely rate-limited).',
-                cached, owner, repo, blocked_status)
+                'Using disk-cached GitHub tag `%s` for `%s/%s` after HTTP %d '
+                '(likely rate-limited).', cached, owner, repo, blocked_status)
             _tag_cache[key] = cached
             return cached
         msg = f'Could not get latest tag for `{owner}/{repo}`.'
@@ -544,11 +582,11 @@ async def ref_commit_sha(session: niquests.AsyncSession, owner: str, repo: str, 
     key = f'gh_sha_{owner}/{repo}@{ref}'
     if key in _tag_cache:
         return _tag_cache[key]
-    resp = await session.get(f'https://api.github.com/repos/{owner}/{repo}/commits/{ref}',
-                             headers={'Accept': 'application/vnd.github.sha'},
-                             timeout=15)
-    blocked = _blocked_status(resp)
-    if resp.ok and (sha := (resp.text or '').strip()):
+    r = await session.get(f'https://api.github.com/repos/{owner}/{repo}/commits/{ref}',
+                          headers={'Accept': 'application/vnd.github.sha'},
+                          timeout=15)
+    blocked = _blocked_status(r)
+    if r.ok and (sha := (r.text or '').strip()):
         _tag_cache[key] = sha
         _write_disk_entry(key, sha)
         return sha
@@ -561,67 +599,292 @@ async def ref_commit_sha(session: niquests.AsyncSession, owner: str, repo: str, 
     raise ValueError(msg)
 
 
-def _keep_a_changelog_url_for(tag: str) -> str:
-    return f'https://keepachangelog.com/en/{tag.strip().removeprefix("v")}/'
+_DESIRED_GITHUB_RULESETS: list[Ruleset] = [
+    {
+        'name':
+            'Protect version tags',
+        'target':
+            'tag',
+        'enforcement':
+            'active',
+        'bypass_actors': [{
+            'actor_id': 5,
+            'actor_type': 'RepositoryRole',
+            'bypass_mode': 'always',
+        }],
+        'conditions': {
+            'ref_name': {
+                'exclude': [],
+                'include': ['refs/tags/v*']
+            }
+        },
+        'rules': [
+            {
+                'type': 'deletion'
+            },
+            {
+                'type': 'non_fast_forward'
+            },
+            {
+                'type': 'required_linear_history'
+            },
+            {
+                'type': 'creation'
+            },
+            {
+                'type': 'update'
+            },
+            {
+                'type': 'required_signatures'
+            },
+        ],
+    },
+    {
+        'name':
+            'Protect default branch',
+        'target':
+            'branch',
+        'enforcement':
+            'active',
+        'bypass_actors': [{
+            'actor_id': 5,
+            'actor_type': 'RepositoryRole',
+            'bypass_mode': 'always',
+        }],
+        'conditions': {
+            'ref_name': {
+                'exclude': [],
+                'include': ['~DEFAULT_BRANCH']
+            }
+        },
+        'rules': [
+            {
+                'type': 'deletion'
+            },
+            {
+                'type': 'non_fast_forward'
+            },
+            {
+                'type': 'pull_request',
+                'parameters': {
+                    'allowed_merge_methods': ['squash', 'rebase'],
+                    'dismiss_stale_reviews_on_push': True,
+                    'require_code_owner_review': True,
+                    'require_last_push_approval': True,
+                    'required_approving_review_count': 1,
+                    'required_review_thread_resolution': True,
+                },
+            },
+        ],
+    },
+    {
+        'name':
+            'Copilot review for default branch',
+        'target':
+            'branch',
+        'enforcement':
+            'active',
+        'bypass_actors': [{
+            'actor_id': 5,
+            'actor_type': 'RepositoryRole',
+            'bypass_mode': 'always',
+        }],
+        'conditions': {
+            'ref_name': {
+                'exclude': [],
+                'include': ['~DEFAULT_BRANCH']
+            }
+        },
+        'rules': [
+            {
+                'type': 'deletion'
+            },
+            {
+                'type': 'copilot_code_review',
+                'parameters': {
+                    'review_on_push': True,
+                    'review_draft_pull_requests': True
+                },
+            },
+        ],
+    },
+]
 
 
-def _semver_spec_url_for(tag: str) -> str:
-    stripped = tag.strip()
-    if not stripped.startswith('v'):
-        stripped = f'v{stripped}'
-    return f'https://semver.org/spec/{stripped}.html'
+def _github_repo_config(*, description: str = '', homepage: str = '') -> RepositoryConfig:
+    return {
+        'allow_auto_merge': False,
+        'allow_merge_commit': False,
+        'allow_rebase_merge': True,
+        'allow_squash_merge': True,
+        'allow_update_branch': True,
+        'archived': False,
+        'delete_branch_on_merge': True,
+        'dependabot_on_actions_enabled': True,
+        'dependency_graph_autosubmit_action_enabled': True,
+        'dependency_graph_autosubmit_action_use_labeled_runners': False,
+        'description': description,
+        'enable_max_pushes_checkbox': False,
+        'enable_repository_funding_links': True,
+        'has_discussions': False,
+        'has_downloads': True,
+        'has_issues': True,
+        'has_pages': True,
+        'has_projects': False,
+        'has_wiki': False,
+        'homepage': homepage,
+        'include_lfs_objects': False,
+        'security_and_analysis': {
+            'dependabot_security_updates': {
+                'status': 'enabled'
+            },
+            'secret_scanning': {
+                'status': 'enabled'
+            },
+            'secret_scanning_non_provider_patterns': {
+                'status': 'disabled'
+            },
+            'secret_scanning_push_protection': {
+                'status': 'enabled'
+            },
+            'secret_scanning_validity_checks': {
+                'status': 'disabled'
+            },
+        },
+        'squash_merge_commit_message': 'COMMIT_MESSAGES',
+        'squash_merge_commit_title': 'COMMIT_OR_PR_TITLE',
+        'use_squash_pr_title_as_default': False,
+        'vulnerability_updates_grouping_enabled': True,
+        'web_commit_signoff_required': True,
+    }
 
 
-async def _keep_a_changelog_url(session: niquests.AsyncSession | None) -> str:
-    if session is None:
-        return CHANGELOG_KEEP_A_CHANGELOG_FALLBACK_URL
+async def _patch_github_repository(api: NiquestsGitHubAPI,
+                                   slug: str,
+                                   *,
+                                   description: str = '',
+                                   homepage: str = '') -> None:
     try:
-        tag = await latest_release_tag(session, 'olivierlacan', 'keep-a-changelog')
-    except (KeyError, OSError, TypeError, ValueError) as exc:
-        log.warning('Keep a Changelog tag lookup failed (%s); using fallback URL.', exc)
-        return CHANGELOG_KEEP_A_CHANGELOG_FALLBACK_URL
-    candidate = _keep_a_changelog_url_for(tag)
+        await api.patch(f'/repos/{slug}',
+                        data=dict(_github_repo_config(description=description, homepage=homepage)))
+        log.info('Applied GitHub repository settings.')
+    except HTTPException as e:
+        log.warning('Could not apply GitHub repository settings: %s.', e)
+
+
+async def _put_github_topics(api: NiquestsGitHubAPI, slug: str, keywords: Iterable[str]) -> None:
     try:
-        resp = await session.head(candidate, timeout=10, allow_redirects=True)
-    except OSError as exc:
-        log.warning('HEAD `%s` failed (%s); using fallback URL.', candidate, exc)
-        return CHANGELOG_KEEP_A_CHANGELOG_FALLBACK_URL
-    if getattr(resp, 'ok', False):
-        return candidate
-    log.warning('Keep a Changelog URL `%s` is not reachable; using fallback `%s`.', candidate,
-                CHANGELOG_KEEP_A_CHANGELOG_FALLBACK_URL)
-    return CHANGELOG_KEEP_A_CHANGELOG_FALLBACK_URL
+        await api.put(f'/repos/{slug}/topics',
+                      data={'names': [k.replace(' ', '-') for k in keywords]})
+        log.info('Applied GitHub repository topics.')
+    except HTTPException as e:
+        log.warning('Could not apply GitHub repository topics: %s.', e)
 
 
-async def _semver_spec_url(session: niquests.AsyncSession | None) -> str:
-    if session is None:
-        return CHANGELOG_SEMVER_SPEC_FALLBACK_URL
+async def _put_github_security_features(api: NiquestsGitHubAPI, slug: str, *,
+                                        immutable_releases: bool) -> None:
+    for endpoint in ('automated-security-fixes', 'private-vulnerability-reporting',
+                     'vulnerability-alerts'):
+        try:
+            await api.put(f'/repos/{slug}/{endpoint}', data=b'')
+            log.info('Enabled GitHub `%s`.', endpoint)
+        except HTTPException as e:  # noqa: PERF203  # one failure must not block the rest.
+            log.warning('Could not enable GitHub `%s`: %s.', endpoint, e)
+    if immutable_releases:
+        try:
+            await api.put(f'/repos/{slug}/immutable-releases', data=b'')
+            log.info('Enabled GitHub immutable releases.')
+        except HTTPException as e:
+            log.warning('Could not enable GitHub immutable releases: %s.', e)
+
+
+async def _sync_github_rulesets(api: NiquestsGitHubAPI, slug: str) -> None:
+    existing: dict[str, int] = {}
     try:
-        tag = await latest_release_tag(session, 'semver', 'semver')
-    except (KeyError, OSError, TypeError, ValueError) as exc:
-        log.warning('SemVer spec tag lookup failed (%s); using fallback URL.', exc)
-        return CHANGELOG_SEMVER_SPEC_FALLBACK_URL
-    return _semver_spec_url_for(tag)
+        async for ruleset in api.getiter(f'/repos/{slug}/rulesets'):
+            if (isinstance(ruleset, dict) and isinstance(ruleset.get('name'), str)
+                    and isinstance(ruleset.get('id'), int)):
+                existing[ruleset['name']] = ruleset['id']
+    except HTTPException as e:
+        log.warning('Could not list GitHub rulesets: %s.', e)
+        return
+    for ruleset in _DESIRED_GITHUB_RULESETS:
+        name = ruleset['name']
+        try:
+            if name in existing:
+                await api.put(f'/repos/{slug}/rulesets/{existing[name]}', data=dict(ruleset))
+            else:
+                await api.post(f'/repos/{slug}/rulesets', data=dict(ruleset))
+            log.info('Applied GitHub ruleset `%s`.', name)
+        except HTTPException as e:
+            log.warning('Could not apply GitHub ruleset `%s`: %s.', name, e)
 
 
-async def resolve_changelog_urls(session: niquests.AsyncSession | None) -> tuple[str, str]:
+async def _bootstrap_github_pages(api: NiquestsGitHubAPI, slug: str, default_branch: str) -> None:
+    if await get_pages_build_type(api, slug) is not None:
+        return
+    try:
+        await api.post(f'/repos/{slug}/pages',
+                       data={'source': {
+                           'branch': default_branch,
+                           'path': '/'
+                       }})
+        log.info('Created GitHub Pages site for `%s`.', slug)
+    except HTTPException as e:
+        log.warning('Could not create GitHub Pages site: %s.', e)
+
+
+async def configure_project(session: niquests.AsyncSession,
+                            *,
+                            repository_uri: str,
+                            description: str = '',
+                            homepage: str = '',
+                            keywords: Iterable[str] = (),
+                            default_branch: str | None = None,
+                            private: bool = False,
+                            immutable_releases: bool = False) -> None:
     """
-    Resolve the Keep a Changelog and Semantic Versioning specification URLs.
+    Configure a GitHub repository's settings, topics, security toggles, rulesets, and Pages.
 
-    Looks up the latest tag of ``olivierlacan/keep-a-changelog`` and ``semver/semver`` and
-    builds the canonical ``https://keepachangelog.com/en/<tag>/`` and
-    ``https://semver.org/spec/v<tag>.html`` URLs. Falls back to the hardcoded ``1.1.0`` and
-    ``v2.0.0`` URLs when *session* is :py:data:`None`, the GitHub lookup fails, or the
-    Keep a Changelog URL is not yet reachable on the live site.
+    Authentication uses the :py:data:`GITHUB_TOKEN_ENV` environment variable first, then the
+    system keyring (see :py:func:`get_github_token`). The caller
+    is responsible for deciding whether to invoke this function (for example by checking a
+    ``using_github`` flag); this routine always attempts to run when called.
+
+    Each sub-operation is wrapped so a single GitHub HTTP failure logs a warning and the rest of
+    the flow continues.
 
     Parameters
     ----------
-    session : niquests.AsyncSession | None
-        Open async HTTP session, or :py:data:`None` to skip GitHub lookups entirely.
-
-    Returns
-    -------
-    tuple[str, str]
-        ``(keep_a_changelog_url, semver_spec_url)`` in that order.
+    session : niquests.AsyncSession
+        Open async HTTP session used by the gidgethub adapter.
+    repository_uri : str
+        HTTPS URI of the GitHub repository (used to derive the API host and ``owner/repo`` slug).
+    description : str
+        Short repository description applied to the ``PATCH /repos/:slug`` body.
+    homepage : str
+        External homepage URL applied to the ``PATCH /repos/:slug`` body.
+    keywords : Iterable[str]
+        Free-form keywords; each entry has spaces replaced with hyphens before being stored as a
+        GitHub topic.
+    default_branch : str | None
+        Branch used as the source for the GitHub Pages site when one is bootstrapped.
+    private : bool
+        Whether the repository is private; suppresses the GitHub Pages bootstrap when ``True``.
+    immutable_releases : bool
+        Whether to enable GitHub's immutable releases feature.
     """
-    return await _keep_a_changelog_url(session), await _semver_spec_url(session)
+    host = urlparse(repository_uri).hostname or 'github.com'
+    token = get_github_token(host)
+    if not token:
+        log.warning('No GitHub token (set %s or keyring `wiswa-github:%s`).', GITHUB_TOKEN_ENV,
+                    host)
+        return
+    slug = slug_from_uri(repository_uri)
+    api = NiquestsGitHubAPI(session, USER_AGENT, oauth_token=token)
+    await _patch_github_repository(api, slug, description=description, homepage=homepage)
+    await _put_github_topics(api, slug, keywords)
+    await _put_github_security_features(api, slug, immutable_releases=immutable_releases)
+    await _sync_github_rulesets(api, slug)
+    if not private and default_branch:
+        await _bootstrap_github_pages(api, slug, default_branch)

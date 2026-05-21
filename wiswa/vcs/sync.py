@@ -11,9 +11,9 @@ from . import github as github_api, gitlab as gitlab_api
 if TYPE_CHECKING:
     import os
 
-    from wiswa.typing.github import Repository
-    from wiswa.typing.gitlab import ProjectSettings, RemoteSettings
     import niquests
+
+    from .typing import ProjectSettings, RemoteSettings, Repository
 
 __all__ = ('sync_github_to_gitlab',)
 
@@ -60,7 +60,7 @@ async def sync_github_to_gitlab(session: niquests.AsyncSession,
         GitLab personal access token with the ``api`` scope.
     default_branch : str
         Default branch name; always added to the protected branches list.
-    gitlab_config : wiswa.typing.gitlab.RemoteSettings | None
+    gitlab_config : RemoteSettings | None
         Opinionated GitLab tables (``project_settings``, ``push_rules``, ``project_approvals``,
         ``default_branch_protection``). Empty dictionaries are treated as absent.
     badges_file : anyio.Path | os.PathLike[str] | None

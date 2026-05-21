@@ -1,5 +1,5 @@
 wiswa-vcs
-=============================
+=========
 
 .. include:: badges.rst
 
@@ -11,19 +11,19 @@ Cross-host VCS metadata sync and mirroring helpers used by Wiswa.
 
 .. only:: html
 
-   .. autmodoule:: wiswa.vcs.auth
-      :members:
-
-   .. automodule:: wiswa.vcs.configure
-      :members:
-
    .. automodule:: wiswa.vcs.github
       :members:
 
    .. automodule:: wiswa.vcs.gitlab
       :members:
 
+   .. automodule:: wiswa.vcs.git
+      :members:
+
    .. automodule:: wiswa.vcs.sync
+      :members:
+
+   .. automodule:: wiswa.vcs.typing
       :members:
 
    Indices and tables

@@ -13,7 +13,7 @@ import click
 import niquests
 
 if TYPE_CHECKING:
-    from wiswa.typing.gitlab import RemoteSettings
+    from wiswa.vcs.typing import RemoteSettings
 
 __all__ = ('main',)
 

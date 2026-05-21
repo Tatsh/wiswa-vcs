@@ -10,45 +10,47 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import quote, urlparse
 import asyncio
+import getpass
 import logging
+import os
 import re
 
 from gidgetlab import abc as gl_abc
 from gidgetlab.exceptions import HTTPException
 from typing_extensions import override
+import keyring
+import keyring.errors
 
 from . import __version__
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
 
-    from wiswa.typing.gitlab import (
+    from wiswa.typing import PackageManager, ProjectType
+    import niquests
+
+    from .typing import (
         Badge,
         BranchProtectionOverrides,
         ProjectApprovals,
         ProjectSettings,
         PushRules,
+        RemoteSettings,
     )
-    import niquests
 
-__all__ = (
-    'MAINTAINER_ACCESS_LEVEL',
-    'MIRROR_PROJECT_SETTINGS_OVERRIDES',
-    'USER_AGENT',
-    'NiquestsGitLabAPI',
-    'apply_project_settings',
-    'base_url',
-    'encode_project_path',
-    'fetch_project_default_branch',
-    'parse_badges',
-    'patch_protected_branch',
-    'project_path',
-    'protect_branches',
-    'protect_tags',
-    'repository_uri_hostname',
-    'sync_badges',
-    'trigger_housekeeping',
-)
+__all__ = ('GITLAB_TOKEN_ENV', 'MAINTAINER_ACCESS_LEVEL', 'MIRROR_PROJECT_SETTINGS_OVERRIDES',
+           'USER_AGENT', 'NiquestsGitLabAPI', 'apply_project_settings', 'base_url',
+           'configure_project', 'desired_gitlab_badges', 'encode_project_path',
+           'fetch_project_default_branch', 'get_gitlab_token', 'gitlab_merged_remote_tables',
+           'parse_badges', 'patch_protected_branch', 'project_path', 'protect_branches',
+           'protect_tags', 'repository_uri_hostname', 'sync_badges', 'trigger_housekeeping')
+
+GITLAB_TOKEN_ENV = 'GITLAB_TOKEN'  # noqa: S105
+"""
+Environment variable consulted first when resolving a GitLab personal access token.
+
+:meta hide-value:
+"""
 
 log = logging.getLogger(__name__)
 
@@ -405,9 +407,43 @@ def repository_uri_hostname(uri: str) -> str:
     str
         The bare hostname, or an empty string when *uri* has no host component.
     """
-    from urllib.parse import urlparse  # noqa: PLC0415
-
     return urlparse(uri).hostname or ''
+
+
+def get_gitlab_token(host: str) -> str | None:
+    """
+    Resolve a GitLab personal access token from the environment or host-scoped keyring.
+
+    Looks first at the :py:data:`GITLAB_TOKEN_ENV` environment variable. Falls back to the
+    system keyring, trying the service name ``wiswa-gitlab:<host>`` with the OS username
+    first, and the bare hostname second (for older Wiswa installations that stored the token
+    under the host as the username).
+
+    Parameters
+    ----------
+    host : str
+        Hostname of the GitLab instance, for example ``gitlab.com`` or
+        ``gitlab.example.com``. An empty string disables keyring lookup.
+
+    Returns
+    -------
+    str | None
+        The resolved token, or :py:data:`None` when no token is available and the keyring
+        backend is missing or empty.
+    """
+    if token := os.environ.get(GITLAB_TOKEN_ENV):
+        return token
+    if not host:
+        return None
+    user = getpass.getuser()
+    try:
+        token = keyring.get_password(f'wiswa-gitlab:{host}', user)
+        if token:
+            return token
+        return keyring.get_password(f'wiswa-gitlab:{host}', host)
+    except keyring.errors.NoKeyringError:
+        log.warning('No keyring backend available.')
+        return None
 
 
 async def fetch_project_default_branch(api: gl_abc.GitLabAPI,
@@ -457,3 +493,257 @@ async def patch_protected_branch(api: gl_abc.GitLabAPI, encoded_project_path: st
     await api.patch(f'/projects/{encoded_project_path}/protected_branches/{encoded_branch}',
                     data=dict(body))
     log.info('Patched protected branch `%s`.', branch_name)
+
+
+def gitlab_merged_remote_tables(
+    gitlab: RemoteSettings | None,
+) -> tuple[ProjectSettings, PushRules, ProjectApprovals, BranchProtectionOverrides]:
+    """
+    Return the four GitLab API request bodies from a merged remote-settings mapping.
+
+    Defaults and per-field overrides are expected to have been merged at the source (Jsonnet
+    layering for Wiswa projects).
+
+    Parameters
+    ----------
+    gitlab : RemoteSettings | None
+        Mapping containing ``project_settings``, ``push_rules``, ``project_approvals``, and
+        ``default_branch_protection`` subtables. :py:data:`None` is treated as an empty mapping.
+
+    Returns
+    -------
+    tuple[ProjectSettings, PushRules, ProjectApprovals, BranchProtectionOverrides]
+        ``(project_settings, push_rules, project_approvals,
+        default_branch_protection)`` ready to feed the GitLab REST API.
+    """
+    glb = gitlab or {}
+    return (glb.get('project_settings') or cast('ProjectSettings', {}), glb.get('push_rules')
+            or cast('PushRules', {}), glb.get('project_approvals') or cast('ProjectApprovals', {}),
+            glb.get('default_branch_protection') or cast('BranchProtectionOverrides', {}))
+
+
+def desired_gitlab_badges(*,
+                          repository_uri: str,
+                          want_tests: bool = False,
+                          project_type: ProjectType | None = None,
+                          using_django: bool = False,
+                          package_manager: PackageManager | None = None,
+                          stubs_only: bool = False) -> list[Badge]:
+    """
+    Return the GitLab badge list Wiswa applies to a project.
+
+    Parameters
+    ----------
+    repository_uri : str
+        HTTPS URI of the GitLab project; only the host is consulted to build absolute badge
+        URLs.
+    want_tests : bool
+        Whether the project has a test suite; toggles the Coverage and pytest badges.
+    project_type : ProjectType | None
+        Project type identifier; controls the Python-specific badge set when ``'python'``.
+    using_django : bool
+        Whether the project uses Django; adds the Django badge when ``project_type`` is
+        ``'python'``.
+    package_manager : PackageManager | None
+        Python package manager identifier; adds either the uv or Poetry badge when
+        ``project_type`` is ``'python'``.
+    stubs_only : bool
+        Whether the project consists of typing stubs only; suppresses the pytest badge.
+
+    Returns
+    -------
+    list[Badge]
+        Ordered badge definitions suitable for the GitLab project badges API.
+    """
+    base = base_url(repository_uri)
+    project = f'{base}/%{{project_path}}'
+    branch = '%{default_branch}'
+    pipelines_link = f'{project}/-/pipelines'
+    badges: list[Badge] = [{
+        'image_url': f'{project}/badges/{branch}/pipeline.svg?ignore_skipped=true',
+        'link_url': pipelines_link,
+        'name': 'QA',
+    }]
+    if want_tests:
+        badges.append({
+            'image_url': f'{project}/badges/{branch}/coverage.svg?ignore_skipped=true',
+            'link_url': pipelines_link,
+            'name': 'Coverage',
+        })
+    badges.append({
+        'image_url': f'{project}/-/badges/release.svg',
+        'link_url': f'{project}/-/releases',
+        'name': 'Latest Release',
+    })
+    if project_type == 'python':
+        if using_django:
+            badges.append({
+                'image_url': 'https://img.shields.io/badge/django-092E20?logo=django',
+                'link_url': 'https://djangoproject.com',
+                'name': 'Django',
+            })
+        badges.append({
+            'image_url': 'https://www.mypy-lang.org/static/mypy_badge.svg',
+            'link_url': 'https://mypy-lang.org/',
+            'name': 'mypy',
+        })
+        if package_manager == 'uv':
+            badges.append({
+                'image_url': 'https://img.shields.io/badge/uv-261230?logo=astral',
+                'link_url': 'https://docs.astral.sh/uv/',
+                'name': 'uv',
+            })
+        else:
+            badges.append({
+                'image_url': 'https://img.shields.io/badge/Poetry-242d3e?logo=poetry',
+                'link_url': 'https://python-poetry.org',
+                'name': 'Poetry',
+            })
+        if want_tests and not stubs_only:
+            badges.append({
+                'image_url': ('https://img.shields.io/badge/pytest-zz'
+                              '?logo=Pytest&labelColor=black&color=black'),
+                'link_url': 'https://docs.pytest.org/en/stable/',
+                'name': 'pytest',
+            })
+        badges.append({
+            'image_url': ('https://img.shields.io/endpoint?url=https://raw.githubusercontent.com'
+                          '/astral-sh/ruff/main/assets/badge/v2.json'),
+            'link_url': 'https://github.com/astral-sh/ruff',
+            'name': 'Ruff',
+        })
+    badges.extend([{
+        'image_url': 'https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit',
+        'link_url': 'https://github.com/pre-commit/pre-commit',
+        'name': 'pre-commit'
+    }, {
+        'image_url': 'https://img.shields.io/badge/Prettier-black?logo=prettier',
+        'link_url': 'https://prettier.io/',
+        'name': 'Prettier'
+    }])
+    return badges
+
+
+async def _configure(session: niquests.AsyncSession,
+                     *,
+                     token: str,
+                     repository_uri: str,
+                     description: str = '',
+                     homepage: str = '',
+                     keywords: Iterable[str] = (),
+                     default_branch: str | None = None,
+                     gitlab_config: RemoteSettings | None = None,
+                     want_tests: bool = False,
+                     project_type: ProjectType | None = None,
+                     using_django: bool = False,
+                     package_manager: PackageManager | None = None,
+                     stubs_only: bool = False) -> None:
+    encoded = encode_project_path(project_path(repository_uri))
+    if not encoded:
+        log.warning('Could not derive GitLab project path from `%s`.', repository_uri)
+        return
+    api = NiquestsGitLabAPI(session, USER_AGENT, access_token=token, url=base_url(repository_uri))
+    project_settings, push_rules, project_approvals, default_branch_protection = (
+        gitlab_merged_remote_tables(gitlab_config))
+    project_settings['description'] = description
+    project_settings['topics'] = [x.replace(' ', '-') for x in keywords]
+    project_settings['homepage_url'] = homepage
+    await apply_project_settings(api,
+                                 encoded,
+                                 project_approvals=project_approvals or None,
+                                 project_settings=project_settings,
+                                 push_rules=push_rules or None)
+    if default_branch_protection:
+        resolved_default = (await fetch_project_default_branch(api, encoded) or default_branch)
+        if resolved_default:
+            await patch_protected_branch(api, encoded, resolved_default, default_branch_protection)
+        else:
+            log.warning('Could not determine default branch for `%s`.', repository_uri)
+    await sync_badges(
+        api, encoded,
+        desired_gitlab_badges(repository_uri=repository_uri,
+                              want_tests=want_tests,
+                              project_type=project_type,
+                              using_django=using_django,
+                              package_manager=package_manager,
+                              stubs_only=stubs_only))
+
+
+async def configure_project(session: niquests.AsyncSession,
+                            *,
+                            repository_uri: str,
+                            description: str = '',
+                            homepage: str = '',
+                            keywords: Iterable[str] = (),
+                            default_branch: str | None = None,
+                            gitlab_config: RemoteSettings | None = None,
+                            want_tests: bool = False,
+                            project_type: ProjectType | None = None,
+                            using_django: bool = False,
+                            package_manager: PackageManager | None = None,
+                            stubs_only: bool = False) -> None:
+    """
+    Configure a GitLab project (settings, description, topics, badges, protected branch).
+
+    Authentication uses the :py:data:`GITLAB_TOKEN_ENV` environment variable first, then the
+    system keyring (see :py:func:`get_gitlab_token`). The caller
+    is responsible for deciding whether to invoke this function (for example by checking a
+    ``using_gitlab`` flag); this routine always attempts to run when called.
+
+    Parameters
+    ----------
+    session : niquests.AsyncSession
+        Open async HTTP session used by the gidgetlab adapter.
+    repository_uri : str
+        HTTPS URI of the GitLab project (used to derive both the API host and the project path).
+    description : str
+        Short project description applied to ``project_settings.description``.
+    homepage : str
+        External homepage URL applied to ``project_settings.homepage_url``.
+    keywords : Iterable[str]
+        Free-form keywords; each entry has spaces replaced with hyphens before being stored as a
+        GitLab topic.
+    default_branch : str | None
+        Fallback default branch used when the project does not yet have one and a branch is
+        required for protection rules.
+    gitlab_config : RemoteSettings | None
+        Opinionated GitLab tables (``project_settings``, ``push_rules``, ``project_approvals``,
+        ``default_branch_protection``). Empty dictionaries and :py:data:`None` are treated as
+        absent.
+    want_tests : bool
+        Whether the project has a test suite; controls the Coverage and pytest badges.
+    project_type : ProjectType | None
+        Project type used to shape the badge set (Python-specific badges are added when this is
+        ``'python'``).
+    using_django : bool
+        Whether the project uses Django; adds the Django badge when ``project_type`` is
+        ``'python'``.
+    package_manager : PackageManager | None
+        Python package manager identifier; adds either the uv or Poetry badge when
+        ``project_type`` is ``'python'``.
+    stubs_only : bool
+        Whether the project consists of typing stubs only; suppresses the pytest badge.
+    """
+    host = repository_uri_hostname(repository_uri)
+    token = get_gitlab_token(host)
+    if not token:
+        log.warning('No GitLab token (set %s or keyring `wiswa-gitlab:%s`).', GITLAB_TOKEN_ENV,
+                    host)
+        return
+    try:
+        await _configure(session,
+                         token=token,
+                         repository_uri=repository_uri,
+                         description=description,
+                         homepage=homepage,
+                         keywords=keywords,
+                         default_branch=default_branch,
+                         gitlab_config=gitlab_config,
+                         want_tests=want_tests,
+                         project_type=project_type,
+                         using_django=using_django,
+                         package_manager=package_manager,
+                         stubs_only=stubs_only)
+    except HTTPException as e:
+        log.warning('Caught error updating GitLab project: %s.', e)
+        log.debug('%r', e)

@@ -55,7 +55,6 @@ dependencies = [
   "packaging>=26.2",
   "platformdirs>=4.9.6",
   "typing-extensions>=4.15.0",
-  "wiswa-typing>=0.0.1",
 ]
 description = "Cross-host VCS metadata sync and mirroring helpers used by Wiswa."
 keywords = ["command line", "github", "gitlab", "mirror", "sync", "vcs"]
@@ -203,9 +202,6 @@ max-statements = 100
 [tool.uv]
 default-groups = "all"
 exclude-newer = "1 week"
-
-[tool.uv.exclude-newer-package]
-wiswa-typing = false
 
 [tool.yapf]
 align_closing_bracket_with_visual_indent = true
