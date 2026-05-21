@@ -9,9 +9,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [unreleased]
 
-## [0.0.1] - 2026-00-00
+## [0.0.1] - 2026-05-21
 
-First version.
+### Added
 
-[unreleased]: https://github.com/Tatsh/wiswa-vcs/compare/v0.0.0...HEAD
-[0.0.1]: https://github.com/Tatsh/wiswa-vcs/releases/tag/v0.0.0
+- `wiswa-sync-gh-gl` command and supporting library for mirroring a GitHub repository's
+  description, homepage, topics, protected branches and tags, and project badges to a GitLab
+  project, and for triggering GitLab housekeeping afterwards.
+- GitHub configure flow and release helpers in `wiswa.vcs.github`, consolidating the
+  authentication and configuration entry points previously scattered across separate modules.
+- GitLab configure flow in `wiswa.vcs.gitlab`, with the same consolidated authentication and
+  configuration shape as the GitHub side.
+- `--gitlab-config` option on `wiswa-sync-gh-gl` that accepts either an inline JSON document or a
+  path to a JSON file on disk.
+- TypedDict-based typing surface for cross-host API payloads, including a typed `ProjectSettings`
+  contract used by the sync layer.
+- Sphinx-click-based documentation for `wiswa-sync-gh-gl`.
+
+### Changed
+
+- Repackaged the project as the implicit `wiswa` namespace, moving the code from `wiswa_vcs` to
+  `wiswa.vcs` and aligning the wheel build target with the namespace layout.
+- Adopted the shared `wiswa.typing` namespace for cross-package type definitions.
+- Broadened `sync.badges_file` to accept any `anyio.Path` or `os.PathLike`, so callers no longer
+  need to materialise a concrete path type.
+- The `USER_AGENT` sent to both GitHub and GitLab now carries the installed package version.
+- `gitlab.parse_badges` now yields badges lazily instead of returning a fully materialised list.
+
+[unreleased]: https://github.com/Tatsh/wiswa-vcs/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/Tatsh/wiswa-vcs/releases/tag/v0.0.1

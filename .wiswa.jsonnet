@@ -3,7 +3,7 @@ local utils = import 'utils.libsonnet';
 {
   uses_user_defaults: true,
   project_name: 'wiswa-vcs',
-  version: '0.0.0',
+  version: '0.0.1',
   description: 'Cross-host VCS metadata sync and mirroring helpers used by Wiswa.',
   keywords: ['command line', 'github', 'gitlab', 'mirror', 'sync', 'vcs'],
   primary_module: 'wiswa',
@@ -41,6 +41,18 @@ local utils = import 'utils.libsonnet';
       },
     },
     tool+: {
+      commitizen+: {
+        version_files: [
+          '.wiswa.jsonnet',
+          'CITATION.cff',
+          'README.md',
+          'docs/badges.rst',
+          'docs/index.rst',
+          'man/wiswa-vcs.1',
+          'package.json',
+          'wiswa/vcs/__init__.py',
+        ],
+      },
       pytest+: {
         ini_options+: {
           asyncio_mode: 'auto',

@@ -63,7 +63,7 @@ license = "MIT"
 name = "wiswa-vcs"
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
-version = "0.0.0"
+version = "0.0.1"
 
 [[project.authors]]
 email = "audvare@gmail.com"
@@ -88,7 +88,7 @@ version_files = [
   "README.md",
   "docs/badges.rst",
   "docs/index.rst",
-  "man/vcs.1",
+  "man/wiswa-vcs.1",
   "package.json",
   "wiswa/vcs/__init__.py",
 ]
