@@ -348,12 +348,12 @@ def _read_disk_store() -> dict[str, str]:
 
 def _write_disk_entry(key: str, value: str) -> None:
     path = _disk_cache_path()
+    store = _read_disk_store()
+    store[key] = value
+    text = f'{json.dumps(store, indent=2, sort_keys=True)}\n'
+    tmp = path.with_suffix(f'{path.suffix}.tmp')
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        store = _read_disk_store()
-        store[key] = value
-        text = f'{json.dumps(store, indent=2, sort_keys=True)}\n'
-        tmp = path.with_suffix(f'{path.suffix}.tmp')
         tmp.write_text(text, encoding='utf-8')
         tmp.replace(path)
     except OSError as exc:
