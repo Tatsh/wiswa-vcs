@@ -28,6 +28,7 @@ local utils = import 'utils.libsonnet';
       niquests: utils.latestPypiPackageVersionCaret('niquests'),
       packaging: utils.latestPypiPackageVersionCaret('packaging'),
       platformdirs: utils.latestPypiPackageVersionCaret('platformdirs'),
+      'wiswa-typing': utils.latestPypiPackageVersionCaret('wiswa-typing'),
     },
     tests+: {
       'pytest-asyncio': utils.latestPypiPackageVersionCaret('pytest-asyncio'),
@@ -43,6 +44,11 @@ local utils = import 'utils.libsonnet';
       pytest+: {
         ini_options+: {
           asyncio_mode: 'auto',
+        },
+      },
+      uv+: {
+        'exclude-newer-package': {
+          'wiswa-typing': false,
         },
       },
     },
