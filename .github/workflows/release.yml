@@ -49,7 +49,7 @@ jobs:
         run: |
           tag="$TAG"
           sha="$HEAD_SHA"
-          required_workflows=('AppImage' 'Publish' 'PyInstaller')
+          required_workflows=('Publish')
           optional_workflows=('Prettier' 'QA' 'Spelling' 'Tests' 'markdownlint')
           all_success=true
           process_workflow() {
@@ -160,10 +160,8 @@ name: 'Release'
     types:
       - 'completed'
     workflows:
-      - 'AppImage'
       - 'Prettier'
       - 'Publish'
-      - 'PyInstaller'
       - 'QA'
       - 'Spelling'
       - 'Tests'
