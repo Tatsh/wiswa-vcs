@@ -4,7 +4,7 @@ requires = ["hatchling"]
 
 [dependency-groups]
 dev = [
-  "commitizen>=4.16.0",
+  "commitizen>=4.16.2",
   "cz-path>=0.0.7",
   "mypy>=2.1.0",
   "ruff==0.15.13",
@@ -55,7 +55,7 @@ dependencies = [
   "packaging>=26.2",
   "platformdirs>=4.9.6",
   "typing-extensions>=4.15.0",
-  "wiswa-typing>=0.0.1",
+  "wiswa-typing>=0.1.0",
 ]
 description = "Cross-host VCS metadata sync and mirroring helpers used by Wiswa."
 keywords = ["command line", "github", "gitlab", "mirror", "sync", "vcs"]
