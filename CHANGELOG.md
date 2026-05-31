@@ -9,6 +9,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [unreleased]
 
+### Fixed
+
+- Ruleset synchronisation no longer aborts the whole configure flow when GitHub rejects a ruleset
+  with a `422` whose `errors` payload is a list of strings (as the rulesets endpoint returns),
+  which made gidgethub raise `TypeError` instead of `HTTPException`; such failures are now logged
+  and the remaining rulesets still apply.
+
 ## [0.0.1] - 2026-05-21
 
 ### Added

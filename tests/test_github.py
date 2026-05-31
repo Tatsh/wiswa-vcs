@@ -836,6 +836,17 @@ async def test_configure_project_sync_rulesets_apply_failure_logged(
 
 
 @pytest.mark.asyncio
+async def test_configure_project_sync_rulesets_parse_error_logged(
+        mocker: MockerFixture, caplog: pytest.LogCaptureFixture) -> None:
+    _patch_token(mocker)
+    api = _make_gh_api(mocker)
+    api.post = AsyncMock(side_effect=TypeError('string indices must be integers'))
+    with caplog.at_level(logging.WARNING):
+        await configure_project(MagicMock(), repository_uri='https://github.com/owner/repo')
+    assert 'ruleset' in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_configure_project_bootstrap_pages_skipped_when_already_configured(
         mocker: MockerFixture) -> None:
     _patch_token(mocker)

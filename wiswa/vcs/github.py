@@ -816,7 +816,11 @@ async def _sync_github_rulesets(api: NiquestsGitHubAPI, slug: str) -> None:
             else:
                 await api.post(f'/repos/{slug}/rulesets', data=dict(ruleset))
             log.info('Applied GitHub ruleset `%s`.', name)
-        except HTTPException as e:
+        except (HTTPException, TypeError, KeyError) as e:
+            # gidgethub raises TypeError or KeyError rather than HTTPException when GitHub
+            # rejects a ruleset with a 422 whose `errors` payload is a list of strings instead
+            # of objects, as the rulesets endpoint does. A single failure must not block the
+            # rest.
             log.warning('Could not apply GitHub ruleset `%s`: %s.', name, e)
 
 
