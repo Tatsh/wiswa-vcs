@@ -6,7 +6,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/wiswa-vcs)](https://pypi.org/project/wiswa-vcs/)
 [![GitHub tag (with filter)](https://img.shields.io/github/v/tag/Tatsh/wiswa-vcs)](https://github.com/Tatsh/wiswa-vcs/tags)
 [![License](https://img.shields.io/github/license/Tatsh/wiswa-vcs)](https://github.com/Tatsh/wiswa-vcs/blob/master/LICENSE.txt)
-[![GitHub commits since latest release (by SemVer including pre-releases)](https://img.shields.io/github/commits-since/Tatsh/wiswa-vcs/v0.0.1/master)](https://github.com/Tatsh/wiswa-vcs/compare/v0.0.1...master)
+[![GitHub commits since latest release (by SemVer including pre-releases)](https://img.shields.io/github/commits-since/Tatsh/wiswa-vcs/v0.1.0/master)](https://github.com/Tatsh/wiswa-vcs/compare/v0.1.0...master)
 [![CodeQL](https://github.com/Tatsh/wiswa-vcs/actions/workflows/codeql.yml/badge.svg)](https://github.com/Tatsh/wiswa-vcs/actions/workflows/codeql.yml)
 [![QA](https://github.com/Tatsh/wiswa-vcs/actions/workflows/qa.yml/badge.svg)](https://github.com/Tatsh/wiswa-vcs/actions/workflows/qa.yml)
 [![Tests](https://github.com/Tatsh/wiswa-vcs/actions/workflows/tests.yml/badge.svg)](https://github.com/Tatsh/wiswa-vcs/actions/workflows/tests.yml)
