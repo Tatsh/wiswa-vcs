@@ -798,6 +798,43 @@ async def _put_github_security_features(api: NiquestsGitHubAPI, slug: str, *,
             log.warning('Could not enable GitHub immutable releases: %s.', e)
 
 
+async def _put_github_actions_permissions(api: NiquestsGitHubAPI, slug: str, *,
+                                          sha_pinning_required: bool) -> None:
+    if not sha_pinning_required:
+        return
+    endpoint = f'/repos/{slug}/actions/permissions'
+    try:
+        current = dict(await api.getitem(endpoint))
+    except HTTPException as e:
+        log.warning('Could not read GitHub Actions permissions: %s.', e)
+        return
+    # PUT replaces the whole resource, so preserve the existing enablement and allow-list rather
+    # than resetting a repository that restricts which actions may run.
+    body: dict[str, Any] = {'enabled': current.get('enabled', True), 'sha_pinning_required': True}
+    if (allowed_actions := current.get('allowed_actions')) is not None:
+        body['allowed_actions'] = allowed_actions
+    try:
+        await api.put(endpoint, data=body)
+        log.info('Enabled GitHub Actions SHA pinning requirement.')
+    except HTTPException as e:
+        log.warning('Could not enable GitHub Actions SHA pinning requirement: %s.', e)
+
+
+async def _put_github_oidc_subject(api: NiquestsGitHubAPI, slug: str, *,
+                                   immutable_oidc_subject: bool) -> None:
+    if not immutable_oidc_subject:
+        return
+    try:
+        await api.put(f'/repos/{slug}/actions/oidc/customization/sub',
+                      data={
+                          'use_default': True,
+                          'use_immutable_subject': True
+                      })
+        log.info('Enabled GitHub immutable OIDC subject claim.')
+    except HTTPException as e:
+        log.warning('Could not enable GitHub immutable OIDC subject claim: %s.', e)
+
+
 async def _sync_github_rulesets(api: NiquestsGitHubAPI, slug: str) -> None:
     existing: dict[str, int] = {}
     try:
@@ -846,7 +883,9 @@ async def configure_project(session: niquests.AsyncSession,
                             keywords: Iterable[str] = (),
                             default_branch: str | None = None,
                             private: bool = False,
-                            immutable_releases: bool = False) -> None:
+                            immutable_releases: bool = False,
+                            sha_pinning_required: bool = False,
+                            immutable_oidc_subject: bool = False) -> None:
     """
     Configure a GitHub repository's settings, topics, security toggles, rulesets, and Pages.
 
@@ -877,6 +916,10 @@ async def configure_project(session: niquests.AsyncSession,
         Whether the repository is private; suppresses the GitHub Pages bootstrap when ``True``.
     immutable_releases : bool
         Whether to enable GitHub's immutable releases feature.
+    sha_pinning_required : bool
+        Whether to require that GitHub Actions are pinned to a full-length commit SHA.
+    immutable_oidc_subject : bool
+        Whether to opt in to the immutable OIDC subject claim format for the repository.
     """
     host = urlparse(repository_uri).hostname or 'github.com'
     token = get_github_token(host)
@@ -889,6 +932,8 @@ async def configure_project(session: niquests.AsyncSession,
     await _patch_github_repository(api, slug, description=description, homepage=homepage)
     await _put_github_topics(api, slug, keywords)
     await _put_github_security_features(api, slug, immutable_releases=immutable_releases)
+    await _put_github_actions_permissions(api, slug, sha_pinning_required=sha_pinning_required)
+    await _put_github_oidc_subject(api, slug, immutable_oidc_subject=immutable_oidc_subject)
     await _sync_github_rulesets(api, slug)
     if not private and default_branch:
         await _bootstrap_github_pages(api, slug, default_branch)

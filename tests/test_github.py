@@ -793,6 +793,111 @@ async def test_configure_project_logs_security_failures(mocker: MockerFixture,
 
 
 @pytest.mark.asyncio
+async def test_configure_project_requires_sha_pinning(mocker: MockerFixture) -> None:
+    _patch_token(mocker)
+    api = _make_gh_api(mocker)
+
+    async def getitem(url: str) -> dict[str, Any]:  # noqa: RUF029
+        if url.endswith('/actions/permissions'):
+            return {'enabled': True, 'allowed_actions': 'selected'}
+        return {}
+
+    api.getitem = AsyncMock(side_effect=getitem)
+    await configure_project(MagicMock(),
+                            repository_uri='https://github.com/owner/repo',
+                            sha_pinning_required=True)
+    perms_call = next(
+        c for c in api.put.await_args_list if c.args and c.args[0].endswith('/actions/permissions'))
+    assert perms_call.kwargs['data'] == {
+        'enabled': True,
+        'sha_pinning_required': True,
+        'allowed_actions': 'selected'
+    }
+
+
+@pytest.mark.asyncio
+async def test_configure_project_sha_pinning_defaults_when_no_allowed_actions(
+        mocker: MockerFixture) -> None:
+    _patch_token(mocker)
+    api = _make_gh_api(mocker)
+    await configure_project(MagicMock(),
+                            repository_uri='https://github.com/owner/repo',
+                            sha_pinning_required=True)
+    perms_call = next(
+        c for c in api.put.await_args_list if c.args and c.args[0].endswith('/actions/permissions'))
+    assert perms_call.kwargs['data'] == {'enabled': True, 'sha_pinning_required': True}
+
+
+@pytest.mark.asyncio
+async def test_configure_project_sha_pinning_read_failure_logged(
+        mocker: MockerFixture, caplog: pytest.LogCaptureFixture) -> None:
+    _patch_token(mocker)
+    api = _make_gh_api(mocker)
+
+    async def getitem(url: str) -> dict[str, Any]:  # noqa: RUF029
+        if url.endswith('/actions/permissions'):
+            raise HTTPException(HTTPStatus.FORBIDDEN, 'forbidden')
+        return {}
+
+    api.getitem = AsyncMock(side_effect=getitem)
+    with caplog.at_level(logging.WARNING):
+        await configure_project(MagicMock(),
+                                repository_uri='https://github.com/owner/repo',
+                                sha_pinning_required=True)
+    assert 'read GitHub Actions permissions' in caplog.text
+    assert not any(c.args and c.args[0].endswith('/actions/permissions')
+                   for c in api.put.await_args_list)
+
+
+@pytest.mark.asyncio
+async def test_configure_project_sha_pinning_put_failure_logged(
+        mocker: MockerFixture, caplog: pytest.LogCaptureFixture) -> None:
+    _patch_token(mocker)
+    api = _make_gh_api(mocker)
+
+    async def fail_perms(url: str, **_kwargs: Any) -> None:  # noqa: RUF029
+        if url.endswith('/actions/permissions'):
+            raise HTTPException(HTTPStatus.FORBIDDEN, 'forbidden')
+
+    api.put = AsyncMock(side_effect=fail_perms)
+    with caplog.at_level(logging.WARNING):
+        await configure_project(MagicMock(),
+                                repository_uri='https://github.com/owner/repo',
+                                sha_pinning_required=True)
+    assert 'SHA pinning requirement' in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_configure_project_enables_immutable_oidc_subject(mocker: MockerFixture) -> None:
+    _patch_token(mocker)
+    api = _make_gh_api(mocker)
+    await configure_project(MagicMock(),
+                            repository_uri='https://github.com/owner/repo',
+                            immutable_oidc_subject=True)
+    oidc_call = next(c for c in api.put.await_args_list
+                     if c.args and c.args[0].endswith('/actions/oidc/customization/sub'))
+    assert oidc_call.kwargs['data'] == {'use_default': True, 'use_immutable_subject': True}
+
+
+@pytest.mark.asyncio
+async def test_configure_project_immutable_oidc_subject_failure_logged(
+        mocker: MockerFixture, caplog: pytest.LogCaptureFixture) -> None:
+    _patch_token(mocker)
+    api = _make_gh_api(mocker)
+
+    async def fail_oidc(url: str, **_kwargs: Any) -> None:  # noqa: RUF029
+        if 'oidc' in url:
+            raise HTTPException(HTTPStatus.FORBIDDEN, 'forbidden')
+
+    api.put = AsyncMock(side_effect=fail_oidc)
+    with caplog.at_level(logging.WARNING):
+        await configure_project(MagicMock(),
+                                repository_uri='https://github.com/owner/repo',
+                                immutable_oidc_subject=True)
+    assert 'immutable OIDC subject claim' in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_configure_project_sync_rulesets_creates_and_updates(mocker: MockerFixture) -> None:
     _patch_token(mocker)
     api = _make_gh_api(mocker)

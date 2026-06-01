@@ -9,6 +9,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [unreleased]
 
+### Added
+
+- Two opt-in keyword-only parameters on `github.configure_project`, both defaulting to off:
+  - `sha_pinning_required` requires GitHub Actions to be pinned to a full-length commit SHA.
+  - `immutable_oidc_subject` opts in to the immutable OIDC subject claim format.
+
 ### Fixed
 
 - Ruleset synchronisation no longer aborts the whole configure flow when GitHub rejects a ruleset
