@@ -98,7 +98,6 @@ setattr
 shellcheck
 shellformat
 snapcraft
-softprops
 soupsieve
 sphinxcontrib
 subtables
@@ -115,9 +114,11 @@ undrafted
 vendored
 venv
 virtualenv
+winget
 wiswa
 wiswa's
 worktree
 yapf
 yapfignore
 yarnrc
+zizmor
