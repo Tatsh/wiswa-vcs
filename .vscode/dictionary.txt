@@ -46,6 +46,7 @@ getiter
 gidgethub
 gidgetlab
 globaltoc
+handoff
 hoverxref
 htmlcov
 intersphinx
@@ -100,6 +101,7 @@ shellformat
 snapcraft
 soupsieve
 sphinxcontrib
+statusline
 subtables
 tatsh
 testpaths

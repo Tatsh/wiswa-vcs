@@ -25,7 +25,9 @@ repos:
       - id: 'check-toml'
       - id: 'debug-statements'
       - id: 'destroyed-symlinks'
-      - id: 'detect-aws-credentials'
+      - args:
+          - '--allow-missing-credentials'
+        id: 'detect-aws-credentials'
       - id: 'detect-private-key'
       - exclude: "^vcpkg.*\\.json$"
         id: 'end-of-file-fixer'
@@ -44,13 +46,13 @@ repos:
           - '--frozen'
         id: 'uv-sync'
     repo: 'https://github.com/astral-sh/uv-pre-commit'
-    rev: '0.11.17'
+    rev: '0.12.1'
   - hooks:
       - args:
           - '--fix'
         id: 'ruff-check'
     repo: 'https://github.com/astral-sh/ruff-pre-commit'
-    rev: 'v0.15.15'
+    rev: 'v0.16.1'
   - hooks:
       - id: 'yapf'
         name: 'check Python files are formatted'
@@ -66,11 +68,11 @@ repos:
         id: 'check-jsonschema'
         name: 'validate package.json'
     repo: 'https://github.com/python-jsonschema/check-jsonschema'
-    rev: '0.37.2'
+    rev: '0.37.4'
   - hooks:
       - id: 'zizmor'
     repo: 'https://github.com/zizmorcore/zizmor-pre-commit'
-    rev: 'v1.25.2'
+    rev: 'v1.29.0'
   - hooks:
       - id: 'validate-cff'
     repo: 'https://github.com/citation-file-format/cffconvert'
@@ -114,4 +116,4 @@ repos:
   - hooks:
       - id: 'cspell'
     repo: 'https://github.com/streetsidesoftware/cspell-cli'
-    rev: 'v10.0.0'
+    rev: 'v10.0.1'
