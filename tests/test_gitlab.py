@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, call
 import logging
 
-from gidgetlab.exceptions import HTTPException
+from gidgetlab.exceptions import BadRequest, HTTPException
 from wiswa.vcs.gitlab import (
     GITLAB_TOKEN_ENV,
     MAINTAINER_ACCESS_LEVEL,
@@ -194,6 +194,122 @@ async def test_apply_project_settings_falls_back_to_post_when_push_rule_put_fail
                                  project_settings={'description': 'd'},
                                  push_rules={'prevent_secrets': 'true'})
     api.post.assert_awaited_once_with('/projects/g%2Fp/push_rule', data={'prevent_secrets': 'true'})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('detail', [
+    'Pages access level is not allowed for the project visibility level',
+    {
+        'pages_access_level': ['is not allowed for the project visibility level']
+    },
+])
+async def test_apply_project_settings_retries_without_rejected_setting(
+        detail: Any, caplog: pytest.LogCaptureFixture) -> None:
+    api = MagicMock()
+    api.put = AsyncMock(side_effect=[BadRequest(HTTPStatus.BAD_REQUEST, detail), None])
+    api.post = AsyncMock()
+    with caplog.at_level(logging.WARNING):
+        await apply_project_settings(api,
+                                     'g%2Fp',
+                                     project_settings={
+                                         'description': 'd',
+                                         'pages_access_level': 'enabled'
+                                     })
+    assert api.put.await_args_list == [
+        call('/projects/g%2Fp', data={
+            'description': 'd',
+            'pages_access_level': 'enabled'
+        }),
+        call('/projects/g%2Fp', data={'description': 'd'}),
+    ]
+    assert '`pages_access_level`' in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_apply_project_settings_drops_only_the_named_setting() -> None:
+    api = MagicMock()
+    api.put = AsyncMock(side_effect=[
+        BadRequest(HTTPStatus.BAD_REQUEST, 'Issues access level is invalid'),
+        None,
+    ])
+    await apply_project_settings(api,
+                                 'g%2Fp',
+                                 project_settings={
+                                     'issues_access_level': 'disabled',
+                                     'issues_enabled': 'true'
+                                 })
+    assert api.put.await_args_list[1] == call('/projects/g%2Fp', data={'issues_enabled': 'true'})
+
+
+@pytest.mark.asyncio
+async def test_apply_project_settings_retries_after_unprocessable_entity() -> None:
+    api = MagicMock()
+    api.put = AsyncMock(side_effect=[
+        BadRequest(HTTPStatus.UNPROCESSABLE_ENTITY, 'Wiki access level is invalid'),
+        None,
+    ])
+    await apply_project_settings(api,
+                                 'g%2Fp',
+                                 project_settings={
+                                     'description': 'd',
+                                     'wiki_access_level': 'enabled'
+                                 })
+    assert api.put.await_args_list[1] == call('/projects/g%2Fp', data={'description': 'd'})
+
+
+@pytest.mark.asyncio
+async def test_apply_project_settings_skips_settings_when_rejection_is_unattributable(
+        caplog: pytest.LogCaptureFixture) -> None:
+    api = MagicMock()
+    api.put = AsyncMock(side_effect=[BadRequest(HTTPStatus.BAD_REQUEST, 'Something went wrong')])
+    api.post = AsyncMock()
+    with caplog.at_level(logging.WARNING):
+        await apply_project_settings(api,
+                                     'g%2Fp',
+                                     project_approvals={'approvals_before_merge': 1},
+                                     project_settings={'description': 'd'})
+    api.put.assert_awaited_once()
+    assert 'Could not apply GitLab project settings' in caplog.text
+    api.post.assert_awaited_once_with('/projects/g%2Fp/approvals',
+                                      data={'approvals_before_merge': 1})
+
+
+@pytest.mark.asyncio
+async def test_apply_project_settings_gives_up_when_every_setting_is_rejected(
+        caplog: pytest.LogCaptureFixture) -> None:
+    api = MagicMock()
+    api.put = AsyncMock(side_effect=[BadRequest(HTTPStatus.BAD_REQUEST, 'Description is too long')])
+    with caplog.at_level(logging.WARNING):
+        await apply_project_settings(api, 'g%2Fp', project_settings={'description': 'd'})
+    api.put.assert_awaited_once()
+    assert 'No GitLab project settings left to apply' in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_apply_project_settings_propagates_unauthorized() -> None:
+    api = MagicMock()
+    api.put = AsyncMock(side_effect=BadRequest(HTTPStatus.UNAUTHORIZED, '401 Unauthorized'))
+    with pytest.raises(BadRequest, match='Unauthorized'):
+        await apply_project_settings(api, 'g%2Fp', project_settings={'description': 'd'})
+
+
+@pytest.mark.asyncio
+async def test_apply_project_settings_warns_when_push_rules_and_approvals_fail(
+        caplog: pytest.LogCaptureFixture) -> None:
+    api = MagicMock()
+    api.put = AsyncMock(side_effect=[None, HTTPException(HTTPStatus.NOT_FOUND, 'no push rule')])
+    api.post = AsyncMock(side_effect=[
+        HTTPException(HTTPStatus.NOT_FOUND, 'no push rule'),
+        HTTPException(HTTPStatus.FORBIDDEN, 'approvals need Premium'),
+    ])
+    with caplog.at_level(logging.WARNING):
+        await apply_project_settings(api,
+                                     'g%2Fp',
+                                     project_approvals={'approvals_before_merge': 1},
+                                     project_settings={'description': 'd'},
+                                     push_rules={'prevent_secrets': 'true'})
+    assert 'Could not apply GitLab push rules' in caplog.text
+    assert 'Could not apply GitLab project approvals' in caplog.text
 
 
 @pytest.mark.asyncio

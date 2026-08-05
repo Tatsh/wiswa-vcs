@@ -1,14 +1,17 @@
 """High-level cross-host synchronisation flows."""
 from __future__ import annotations
 
+from http import HTTPStatus
 from typing import TYPE_CHECKING
 import logging
 
+from gidgetlab.exceptions import BadRequest
 import anyio
 
 from . import github as github_api, gitlab as gitlab_api
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable
     import os
 
     import niquests
@@ -18,6 +21,20 @@ if TYPE_CHECKING:
 __all__ = ('sync_github_to_gitlab',)
 
 log = logging.getLogger(__name__)
+
+_TOLERATED_STATUSES = frozenset({
+    HTTPStatus.BAD_REQUEST, HTTPStatus.FORBIDDEN, HTTPStatus.NOT_FOUND,
+    HTTPStatus.UNPROCESSABLE_ENTITY
+})
+
+
+async def _attempt(action: str, awaitable: Awaitable[None]) -> None:
+    try:
+        await awaitable
+    except BadRequest as e:
+        if e.status_code not in _TOLERATED_STATUSES:
+            raise
+        log.warning('Could not %s: %s.', action, e)
 
 
 def _merge_project_settings(base: ProjectSettings | None, github_repo: Repository, *,
@@ -44,6 +61,12 @@ async def sync_github_to_gitlab(session: niquests.AsyncSession,
                                 apply_mirror_overrides: bool = True) -> None:
     """
     Synchronise GitHub metadata, protected refs, and badges to a GitLab mirror.
+
+    Each GitLab step is independent: when GitLab refuses branch protection, tag protection, badge
+    synchronisation, or housekeeping with a ``400``, ``403``, ``404``, or ``422``, the refusal is
+    logged and the remaining steps still run. Rejected project settings are dropped individually
+    by :py:func:`~wiswa.vcs.gitlab.apply_project_settings`. Any other error, such as an unusable
+    token, propagates to the caller.
 
     Parameters
     ----------
@@ -98,11 +121,14 @@ async def sync_github_to_gitlab(session: niquests.AsyncSession,
                                             project_approvals=config.get('project_approvals'),
                                             project_settings=project_settings,
                                             push_rules=config.get('push_rules'))
-    await gitlab_api.protect_branches(gl,
-                                      encoded,
-                                      protected_branches,
-                                      overrides=config.get('default_branch_protection'))
-    await gitlab_api.protect_tags(gl, encoded, tag_patterns)
+    await _attempt(
+        'protect GitLab branches',
+        gitlab_api.protect_branches(gl,
+                                    encoded,
+                                    protected_branches,
+                                    overrides=config.get('default_branch_protection')))
+    await _attempt('protect GitLab tags', gitlab_api.protect_tags(gl, encoded, tag_patterns))
     if badges_text is not None:
-        await gitlab_api.sync_badges(gl, encoded, gitlab_api.parse_badges(badges_text))
-    await gitlab_api.trigger_housekeeping(gl, encoded)
+        await _attempt('sync GitLab badges',
+                       gitlab_api.sync_badges(gl, encoded, gitlab_api.parse_badges(badges_text)))
+    await _attempt('trigger GitLab housekeeping', gitlab_api.trigger_housekeeping(gl, encoded))

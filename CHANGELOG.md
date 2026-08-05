@@ -9,6 +9,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [unreleased]
 
+### Fixed
+
+- `wiswa-sync-gh-gl` no longer abandons the whole sync when GitLab refuses one part of it.
+  - Project settings rejected with a `400` or `422` (for example
+    `Pages access level is not allowed for the project visibility level`) are identified from the
+    error, dropped from the `PUT /projects/:id` body, and the rest are retried, so the description,
+    topics, and homepage still apply. A refusal that names no recognisable setting abandons only
+    the settings update.
+  - Push rule and merge-request approval failures are logged and skipped.
+  - A refusal of branch protection, tag protection, badge synchronisation, or housekeeping with a
+    `400`, `403`, `404`, or `422` is logged, and the remaining steps still run; any other response
+    to those steps, such as a `401` or a server error, still aborts the sync.
+- `wiswa-sync-gh-gl` reports GitHub and GitLab API failures as a single message instead of a full
+  traceback. Pass `--debug` for the traceback.
+
 ## [0.1.0] - 2026-06-01
 
 ### Added

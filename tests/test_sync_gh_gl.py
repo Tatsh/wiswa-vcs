@@ -1,10 +1,13 @@
 """Tests for :py:mod:`wiswa.vcs.commands.sync_gh_gl`."""
 from __future__ import annotations
 
+from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
+from gidgethub import BadRequest as GitHubBadRequest
+from gidgetlab.exceptions import BadRequest
 from wiswa.vcs.commands.sync_gh_gl import main
 
 if TYPE_CHECKING:
@@ -123,6 +126,33 @@ def test_sync_gh_gl_aborts_on_sync_failure(runner: CliRunner, mocker: MockerFixt
     _patch_session(mocker)
     result = runner.invoke(main, list(_BASE_ARGS))
     assert result.exit_code != 0
+
+
+def test_sync_gh_gl_reports_api_failure_without_a_traceback(runner: CliRunner,
+                                                            mocker: MockerFixture) -> None:
+    error = BadRequest(HTTPStatus.UNAUTHORIZED, '401 Unauthorized')
+    mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab',
+                 new=AsyncMock(side_effect=error))
+    log = mocker.patch('wiswa.vcs.commands.sync_gh_gl.log')
+    _patch_session(mocker)
+    result = runner.invoke(main, list(_BASE_ARGS))
+    assert result.exit_code != 0
+    log.error.assert_called_once_with('Sync failed: %s.', error)
+    log.exception.assert_not_called()
+
+
+def test_sync_gh_gl_reports_github_api_failure_without_a_traceback(runner: CliRunner,
+                                                                   mocker: MockerFixture) -> None:
+    error = GitHubBadRequest(HTTPStatus.FORBIDDEN, '403 Forbidden')
+    mocker.patch('wiswa.vcs.commands.sync_gh_gl.sync_github_to_gitlab',
+                 new=AsyncMock(side_effect=error))
+    log = mocker.patch('wiswa.vcs.commands.sync_gh_gl.log')
+    _patch_session(mocker)
+    result = runner.invoke(main, list(_BASE_ARGS))
+    assert result.exit_code == 1
+    log.error.assert_called_once_with('Sync failed: %s.', error)
+    log.debug.assert_called_once_with('Sync failure detail.', exc_info=True)
+    log.exception.assert_not_called()
 
 
 def test_sync_gh_gl_rejects_unreadable_gitlab_config_file(runner: CliRunner, mocker: MockerFixture,

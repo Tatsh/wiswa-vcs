@@ -1,9 +1,12 @@
 """Tests for :py:mod:`wiswa.vcs.sync`."""
 from __future__ import annotations
 
+from http import HTTPStatus
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
+import logging
 
+from gidgetlab.exceptions import BadRequest, GitLabBroken
 from wiswa.vcs.sync import sync_github_to_gitlab
 import pytest
 
@@ -127,3 +130,86 @@ async def test_sync_github_to_gitlab_skips_badges_when_file_missing(mocker: Mock
                                 gitlab_repo_uri='https://gitlab.com/g/p.git',
                                 gitlab_token='gl')
     sync_badges.assert_not_awaited()
+
+
+def _patch_sync_steps(mocker: MockerFixture) -> None:
+    mocker.patch('wiswa.vcs.sync.github_api.fetch_repository', new=AsyncMock(return_value={}))
+    mocker.patch('wiswa.vcs.sync.github_api.protected_branch_names',
+                 new=AsyncMock(return_value=set()))
+    mocker.patch('wiswa.vcs.sync.github_api.protected_tag_patterns',
+                 new=AsyncMock(return_value=set()))
+    mocker.patch('wiswa.vcs.sync.gitlab_api.apply_project_settings', new=AsyncMock())
+    mocker.patch('wiswa.vcs.sync.gitlab_api.protect_branches', new=AsyncMock())
+
+
+@pytest.mark.asyncio
+async def test_sync_github_to_gitlab_continues_after_a_refused_step(
+        mocker: MockerFixture, caplog: pytest.LogCaptureFixture) -> None:
+    _patch_clients(mocker)
+    _patch_sync_steps(mocker)
+    mocker.patch('wiswa.vcs.sync.gitlab_api.protect_tags',
+                 new=AsyncMock(side_effect=BadRequest(HTTPStatus.NOT_FOUND, '404 Not Found')))
+    housekeeping = mocker.patch('wiswa.vcs.sync.gitlab_api.trigger_housekeeping', new=AsyncMock())
+    with caplog.at_level(logging.WARNING):
+        await sync_github_to_gitlab(MagicMock(),
+                                    default_branch='master',
+                                    github_repo_uri='owner/repo',
+                                    github_token='gh',
+                                    gitlab_repo_uri='https://gitlab.com/g/p.git',
+                                    gitlab_token='gl')
+    assert 'Could not protect GitLab tags' in caplog.text
+    housekeeping.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_sync_github_to_gitlab_propagates_unauthorized_step(mocker: MockerFixture) -> None:
+    _patch_clients(mocker)
+    _patch_sync_steps(mocker)
+    mocker.patch('wiswa.vcs.sync.gitlab_api.protect_tags',
+                 new=AsyncMock(side_effect=BadRequest(HTTPStatus.UNAUTHORIZED, '401 Unauthorized')))
+    housekeeping = mocker.patch('wiswa.vcs.sync.gitlab_api.trigger_housekeeping', new=AsyncMock())
+    with pytest.raises(BadRequest, match='Unauthorized'):
+        await sync_github_to_gitlab(MagicMock(),
+                                    default_branch='master',
+                                    github_repo_uri='owner/repo',
+                                    github_token='gh',
+                                    gitlab_repo_uri='https://gitlab.com/g/p.git',
+                                    gitlab_token='gl')
+    housekeeping.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'status', [HTTPStatus.BAD_REQUEST, HTTPStatus.FORBIDDEN, HTTPStatus.UNPROCESSABLE_ENTITY])
+async def test_sync_github_to_gitlab_tolerates_every_refusal_status(status: HTTPStatus,
+                                                                    mocker: MockerFixture) -> None:
+    _patch_clients(mocker)
+    _patch_sync_steps(mocker)
+    mocker.patch('wiswa.vcs.sync.gitlab_api.protect_tags',
+                 new=AsyncMock(side_effect=BadRequest(status, 'refused')))
+    housekeeping = mocker.patch('wiswa.vcs.sync.gitlab_api.trigger_housekeeping', new=AsyncMock())
+    await sync_github_to_gitlab(MagicMock(),
+                                default_branch='master',
+                                github_repo_uri='owner/repo',
+                                github_token='gh',
+                                gitlab_repo_uri='https://gitlab.com/g/p.git',
+                                gitlab_token='gl')
+    housekeeping.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_sync_github_to_gitlab_propagates_server_error_step(mocker: MockerFixture) -> None:
+    _patch_clients(mocker)
+    _patch_sync_steps(mocker)
+    mocker.patch('wiswa.vcs.sync.gitlab_api.protect_tags',
+                 new=AsyncMock(side_effect=GitLabBroken(HTTPStatus.INTERNAL_SERVER_ERROR,
+                                                        '500 Internal Server Error')))
+    housekeeping = mocker.patch('wiswa.vcs.sync.gitlab_api.trigger_housekeeping', new=AsyncMock())
+    with pytest.raises(GitLabBroken, match='Internal Server Error'):
+        await sync_github_to_gitlab(MagicMock(),
+                                    default_branch='master',
+                                    github_repo_uri='owner/repo',
+                                    github_token='gh',
+                                    gitlab_repo_uri='https://gitlab.com/g/p.git',
+                                    gitlab_token='gl')
+    housekeeping.assert_not_awaited()

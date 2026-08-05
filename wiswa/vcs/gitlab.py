@@ -7,6 +7,7 @@ same shape as the upstream :py:class:`gidgetlab.aiohttp.GitLabAPI` adapter.
 """
 from __future__ import annotations
 
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import quote, urlparse
 import asyncio
@@ -16,7 +17,7 @@ import os
 import re
 
 from gidgetlab import abc as gl_abc
-from gidgetlab.exceptions import HTTPException
+from gidgetlab.exceptions import BadRequest, HTTPException
 from typing_extensions import override
 import keyring
 import keyring.errors
@@ -85,6 +86,8 @@ attribute traffic to a specific release.
 _BADGE_IMAGE_RE = re.compile(r'^\s*\.\.\s+image::\s+(\S+)\s*$')
 _BADGE_OPTION_RE = re.compile(r'^\s+:(\S+?):\s*(.*)$')
 _BADGE_OPTION_PREFIX_RE = re.compile(r'^\s+:')
+_RECOVERABLE_SETTINGS_STATUSES = frozenset(
+    {HTTPStatus.BAD_REQUEST, HTTPStatus.UNPROCESSABLE_ENTITY})
 
 
 class NiquestsGitLabAPI(gl_abc.GitLabAPI):
@@ -240,6 +243,41 @@ def parse_badges(text: str) -> Iterator[Badge]:
             yield {'image_url': image_url, 'link_url': link_url, 'name': alt}
 
 
+def _rejected_setting_keys(error: HTTPException, settings: Mapping[str, Any]) -> frozenset[str]:
+    detail = error.args[0] if error.args else ''
+    if isinstance(detail, dict):
+        return frozenset(key for key in detail if key in settings)
+    rejected: set[str] = set()
+    for message in str(detail).lower().split(', '):
+        if matches := [k for k in settings if message.startswith(f"{k.replace('_', ' ')} ")]:
+            rejected.add(max(matches, key=len))
+    return frozenset(rejected)
+
+
+async def _put_project_settings(api: gl_abc.GitLabAPI, encoded_project_path: str,
+                                project_settings: ProjectSettings) -> None:
+    remaining: dict[str, Any] = dict(project_settings)
+    while True:
+        try:
+            await api.put(f'/projects/{encoded_project_path}', data=dict(remaining))
+        except BadRequest as e:  # noqa: PERF203  # each retry must observe its own rejection.
+            if e.status_code not in _RECOVERABLE_SETTINGS_STATUSES:
+                raise
+            if not (rejected := _rejected_setting_keys(e, remaining)):
+                log.warning('Could not apply GitLab project settings: %s.', e)
+                return
+            for key in rejected:
+                del remaining[key]
+            log.warning('GitLab rejected project setting(s) %s: %s. Retrying without them.',
+                        ', '.join(f'`{key}`' for key in sorted(rejected)), e)
+            if not remaining:
+                log.warning('No GitLab project settings left to apply.')
+                return
+        else:
+            log.info('Applied project settings.')
+            return
+
+
 async def apply_project_settings(api: gl_abc.GitLabAPI,
                                  encoded_project_path: str,
                                  *,
@@ -248,6 +286,13 @@ async def apply_project_settings(api: gl_abc.GitLabAPI,
                                  project_approvals: ProjectApprovals | None = None) -> None:
     """
     Apply opinionated project settings, push rules, and approvals to a GitLab project.
+
+    Settings that GitLab refuses with a ``400`` or ``422`` (for example a ``pages_access_level``
+    that conflicts with the project visibility) are removed from the request body, and the
+    remaining settings are retried, so one invalid field does not discard the whole update. A
+    refusal that names no recognisable setting is logged and the settings update is abandoned.
+    Any other settings failure, notably an unusable token, propagates to the caller. Push rule
+    and approval failures are always logged and skipped.
 
     Parameters
     ----------
@@ -262,17 +307,25 @@ async def apply_project_settings(api: gl_abc.GitLabAPI,
     project_approvals : ProjectApprovals | None
         Merge-request approval rule body. Skipped when empty.
     """
-    await api.put(f'/projects/{encoded_project_path}', data=dict(project_settings))
-    log.info('Applied project settings.')
+    await _put_project_settings(api, encoded_project_path, project_settings)
     if push_rules:
         try:
-            await api.put(f'/projects/{encoded_project_path}/push_rule', data=dict(push_rules))
-        except HTTPException:
-            await api.post(f'/projects/{encoded_project_path}/push_rule', data=dict(push_rules))
-        log.info('Applied push rules.')
+            try:
+                await api.put(f'/projects/{encoded_project_path}/push_rule', data=dict(push_rules))
+            except HTTPException:
+                await api.post(f'/projects/{encoded_project_path}/push_rule', data=dict(push_rules))
+        except HTTPException as e:
+            log.warning('Could not apply GitLab push rules: %s.', e)
+        else:
+            log.info('Applied push rules.')
     if project_approvals:
-        await api.post(f'/projects/{encoded_project_path}/approvals', data=dict(project_approvals))
-        log.info('Applied project approvals.')
+        try:
+            await api.post(f'/projects/{encoded_project_path}/approvals',
+                           data=dict(project_approvals))
+        except HTTPException as e:
+            log.warning('Could not apply GitLab project approvals: %s.', e)
+        else:
+            log.info('Applied project approvals.')
 
 
 async def protect_branches(api: gl_abc.GitLabAPI,

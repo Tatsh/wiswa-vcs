@@ -8,6 +8,8 @@ import json
 import logging
 
 from bascom import setup_logging
+from gidgethub import HTTPException as GitHubHTTPException
+from gidgetlab.exceptions import GitLabException
 from wiswa.vcs.sync import sync_github_to_gitlab
 import click
 import niquests
@@ -109,6 +111,10 @@ def main(*, badges_file: Path, debug: bool, default_branch: str, github_repo_uri
 
     try:
         asyncio.run(_run())
+    except (GitHubHTTPException, GitLabException) as e:
+        log.error('Sync failed: %s.', e)  # noqa: TRY400  # the traceback is logged at debug level.
+        log.debug('Sync failure detail.', exc_info=True)
+        raise click.Abort from e
     except Exception as e:
         log.exception('Sync failed.')
         raise click.Abort from e
