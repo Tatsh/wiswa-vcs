@@ -9,6 +9,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [unreleased]
 
+## [0.1.1] - 2026-08-06
+
 ### Fixed
 
 - `wiswa-sync-gh-gl` no longer abandons the whole sync when GitLab refuses one part of it.
@@ -66,6 +68,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The `USER_AGENT` sent to both GitHub and GitLab now carries the installed package version.
 - `gitlab.parse_badges` now yields badges lazily instead of returning a fully materialised list.
 
-[unreleased]: https://github.com/Tatsh/wiswa-vcs/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/Tatsh/wiswa-vcs/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Tatsh/wiswa-vcs/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Tatsh/wiswa-vcs/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/Tatsh/wiswa-vcs/releases/tag/v0.0.1
