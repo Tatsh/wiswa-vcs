@@ -4,11 +4,11 @@ requires = ["hatchling"]
 
 [dependency-groups]
 dev = [
-  "commitizen>=4.16.5",
+  "commitizen>=4.17.0",
   "cz-path>=0.0.7",
   "mypy>=2.3.0",
   "ruff==0.16.0",
-  "ty>=0.0.64",
+  "ty>=0.0.65",
   "yapf>=0.43.0",
 ]
 docs = [
@@ -51,7 +51,7 @@ dependencies = [
   "gidgethub>=5.4.0",
   "gidgetlab>=2.1.1",
   "keyring>=25.7.0",
-  "niquests>=3.20.1",
+  "niquests>=3.21.0",
   "packaging>=26.2",
   "platformdirs>=4.11.0",
   "typing-extensions>=4.16.0",

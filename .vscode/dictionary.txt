@@ -69,6 +69,7 @@ namedtuples
 newlnk
 niquests
 norecursedirs
+nullglob
 numpy
 oneline
 passthrough
@@ -98,6 +99,7 @@ sdist
 setattr
 shellcheck
 shellformat
+shopt
 snapcraft
 soupsieve
 sphinxcontrib
