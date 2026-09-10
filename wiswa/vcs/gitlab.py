@@ -27,8 +27,9 @@ from . import __version__
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
 
-    from wiswa.typing import PackageManager, ProjectType
     import niquests
+
+    from wiswa.typing import PackageManager, ProjectType
 
     from .typing import (
         Badge,
@@ -46,7 +47,7 @@ __all__ = ('GITLAB_TOKEN_ENV', 'MAINTAINER_ACCESS_LEVEL', 'MIRROR_PROJECT_SETTIN
            'parse_badges', 'patch_protected_branch', 'project_path', 'protect_branches',
            'protect_tags', 'repository_uri_hostname', 'sync_badges', 'trigger_housekeeping')
 
-GITLAB_TOKEN_ENV = 'GITLAB_TOKEN'  # noqa: S105
+GITLAB_TOKEN_ENV = 'GITLAB_TOKEN'  # ruff: ignore[hardcoded-password-string]
 """
 Environment variable consulted first when resolving a GitLab personal access token.
 
@@ -260,7 +261,7 @@ async def _put_project_settings(api: gl_abc.GitLabAPI, encoded_project_path: str
     while True:
         try:
             await api.put(f'/projects/{encoded_project_path}', data=dict(remaining))
-        except BadRequest as e:  # noqa: PERF203  # each retry must observe its own rejection.
+        except BadRequest as e:  # ruff: ignore[try-except-in-loop]  # each retry must observe its own rejection.
             if e.status_code not in _RECOVERABLE_SETTINGS_STATUSES:
                 raise
             if not (rejected := _rejected_setting_keys(e, remaining)):
@@ -540,7 +541,7 @@ async def patch_protected_branch(api: gl_abc.GitLabAPI, encoded_project_path: st
         PATCH body applied to the protected branch (for example
         ``{'allow_force_push': 'true'}``).
     """
-    from urllib.parse import quote  # noqa: PLC0415
+    from urllib.parse import quote  # ruff: ignore[import-outside-top-level]
 
     encoded_branch = quote(branch_name, safe='')
     await api.patch(f'/projects/{encoded_project_path}/protected_branches/{encoded_branch}',

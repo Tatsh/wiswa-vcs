@@ -53,7 +53,7 @@ __all__ = ('GITHUB_API_HEADERS', 'GITHUB_TOKEN_ENV', 'USER_AGENT', 'NiquestsGitH
            'get_github_token', 'get_pages_build_type', 'latest_release_tag',
            'protected_branch_names', 'protected_tag_patterns', 'ref_commit_sha', 'slug_from_uri')
 
-GITHUB_TOKEN_ENV = 'GITHUB_TOKEN'  # noqa: S105
+GITHUB_TOKEN_ENV = 'GITHUB_TOKEN'  # ruff: ignore[hardcoded-password-string]
 """
 Environment variable consulted first when resolving a GitHub personal access token.
 
@@ -382,7 +382,7 @@ def _blocked_status(response: object) -> int | None:
 
 
 def _version_from_tag(tag: str) -> object | None:
-    from packaging.version import InvalidVersion, parse as parse_version  # noqa: PLC0415
+    from packaging.version import InvalidVersion, parse as parse_version  # ruff: ignore[import-outside-top-level]
 
     try:
         return parse_version(tag.removeprefix('v'))
@@ -788,7 +788,7 @@ async def _put_github_security_features(api: NiquestsGitHubAPI, slug: str, *,
         try:
             await api.put(f'/repos/{slug}/{endpoint}', data=b'')
             log.info('Enabled GitHub `%s`.', endpoint)
-        except HTTPException as e:  # noqa: PERF203  # one failure must not block the rest.
+        except HTTPException as e:  # ruff: ignore[try-except-in-loop]  # one failure must not block the rest.
             log.warning('Could not enable GitHub `%s`: %s.', endpoint, e)
     if immutable_releases:
         try:

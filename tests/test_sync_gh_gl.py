@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 
 from gidgethub import BadRequest as GitHubBadRequest
 from gidgetlab.exceptions import BadRequest
+
 from wiswa.vcs.commands.sync_gh_gl import main
 
 if TYPE_CHECKING:

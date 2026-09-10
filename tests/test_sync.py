@@ -7,8 +7,9 @@ from unittest.mock import AsyncMock, MagicMock
 import logging
 
 from gidgetlab.exceptions import BadRequest, GitLabBroken
-from wiswa.vcs.sync import sync_github_to_gitlab
 import pytest
+
+from wiswa.vcs.sync import sync_github_to_gitlab
 
 if TYPE_CHECKING:
     from pathlib import Path

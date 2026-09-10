@@ -7,6 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, call
 import logging
 
 from gidgetlab.exceptions import BadRequest, HTTPException
+import keyring.errors
+import pytest
+
 from wiswa.vcs.gitlab import (
     GITLAB_TOKEN_ENV,
     MAINTAINER_ACCESS_LEVEL,
@@ -30,17 +33,16 @@ from wiswa.vcs.gitlab import (
     trigger_housekeeping,
 )
 from wiswa.vcs.typing import Badge
-import keyring.errors
-import pytest
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from pytest_mock import MockerFixture
+
     from wiswa.vcs.typing import RemoteSettings
 
 
-async def _aiter(items: list[Any]) -> AsyncIterator[Any]:  # noqa: RUF029
+async def _aiter(items: list[Any]) -> AsyncIterator[Any]:  # ruff: ignore[unused-async]
     for item in items:
         yield item
 
@@ -121,21 +123,21 @@ def test_parse_badges_ignores_unknown_options_and_malformed_option_lines() -> No
 
 @pytest.mark.asyncio
 async def test_niquests_gitlab_api_request_returns_status_headers_body() -> None:
-    response = MagicMock(status_code=200, headers={'X': 'Y'}, content=b'{"ok":true}')
+    response = MagicMock(status_code=200,
+                         headers={'content-type': b'application/json'},
+                         content=b'{"ok":true}')
     session = MagicMock()
     session.request = AsyncMock(return_value=response)
     api = NiquestsGitLabAPI(session,
                             'wiswa-vcs',
                             access_token='tok',
                             url='https://gitlab.example.com')
-    status, headers, body = await api._request(  # noqa: SLF001
-        'POST', 'https://gitlab.example.com/api/v4/x', {'Accept': 'application/json'}, b'payload')
-    assert status == 200
-    assert dict(headers) == {'X': 'Y'}
-    assert body == b'{"ok":true}'
+    assert await api.post('/x', data={'a': 1}) == {'ok': True}
     assert session.request.await_args is not None
     _, kwargs = session.request.await_args
-    assert kwargs['data'] == b'payload'
+    assert kwargs['method'] == 'POST'
+    assert kwargs['url'] == 'https://gitlab.example.com/api/v4/x'
+    assert kwargs['data'] == b'{"a": 1}'
 
 
 @pytest.mark.asyncio
@@ -145,7 +147,7 @@ async def test_niquests_gitlab_api_request_raises_when_response_incomplete() -> 
     session.request = AsyncMock(return_value=response)
     api = NiquestsGitLabAPI(session, 'wiswa-vcs')
     with pytest.raises(RuntimeError, match='incomplete'):
-        await api._request('GET', 'https://gitlab.example.com/api/v4/x', {})  # noqa: SLF001
+        await api.getitem('/x')
 
 
 @pytest.mark.asyncio
@@ -541,8 +543,9 @@ def test_desired_gitlab_badges_non_python_strips_language_specific() -> None:
     assert names == ['QA', 'Coverage', 'Latest Release', 'pre-commit', 'Prettier']
 
 
-def _patch_gitlab_token(mocker: MockerFixture,
-                        token: str | None = 'gl-token') -> None:  # noqa: S107
+def _patch_gitlab_token(
+        mocker: MockerFixture,
+        token: str | None = 'gl-token') -> None:  # ruff: ignore[hardcoded-password-default]
     mocker.patch('wiswa.vcs.gitlab.get_gitlab_token', return_value=token)
 
 

@@ -10,9 +10,10 @@ import logging
 from bascom import setup_logging
 from gidgethub import HTTPException as GitHubHTTPException
 from gidgetlab.exceptions import GitLabException
-from wiswa.vcs.sync import sync_github_to_gitlab
 import click
 import niquests
+
+from wiswa.vcs.sync import sync_github_to_gitlab
 
 if TYPE_CHECKING:
     from wiswa.vcs.typing import RemoteSettings
@@ -92,7 +93,7 @@ def _load_gitlab_config(raw: str | None) -> RemoteSettings:
 def main(*, badges_file: Path, debug: bool, default_branch: str, github_repo_uri: str,
          github_token: str, gitlab_config: str | None, gitlab_repo_uri: str, gitlab_token: str,
          no_mirror_overrides: bool) -> None:
-    """Mirror GitHub metadata, protected refs, and badges to a GitLab project."""  # noqa: DOC501
+    """Mirror GitHub metadata, protected refs, and badges to a GitLab project."""  # ruff: ignore[docstring-missing-exception]
     setup_logging(debug=debug, loggers={'wiswa.vcs': {}})
     config = _load_gitlab_config(gitlab_config)
     resolved_badges_file: Path | None = badges_file if badges_file.is_file() else None
@@ -112,7 +113,8 @@ def main(*, badges_file: Path, debug: bool, default_branch: str, github_repo_uri
     try:
         asyncio.run(_run())
     except (GitHubHTTPException, GitLabException) as e:
-        log.error('Sync failed: %s.', e)  # noqa: TRY400  # the traceback is logged at debug level.
+        # The traceback belongs at debug level. A routine sync failure must not print one.
+        log.error('Sync failed: %s.', e)  # ruff: ignore[error-instead-of-exception]
         log.debug('Sync failure detail.', exc_info=True)
         raise click.Abort from e
     except Exception as e:

@@ -6,8 +6,9 @@ from typing import NoReturn
 import os
 
 from click.testing import CliRunner
-from wiswa.vcs.github import clear_tag_cache
 import pytest
+
+from wiswa.vcs.github import clear_tag_cache
 
 if os.getenv('_PYTEST_RAISE', '0') != '0':  # pragma no cover
 

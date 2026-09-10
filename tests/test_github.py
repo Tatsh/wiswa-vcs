@@ -9,6 +9,9 @@ import json
 import logging
 
 from gidgethub import HTTPException
+import keyring.errors
+import pytest
+
 from wiswa.vcs.github import (
     GITHUB_TOKEN_ENV,
     NiquestsGitHubAPI,
@@ -23,8 +26,6 @@ from wiswa.vcs.github import (
     ref_commit_sha,
     slug_from_uri,
 )
-import keyring.errors
-import pytest
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -33,7 +34,7 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 
-async def _aiter(items: list[Any]) -> AsyncIterator[Any]:  # noqa: RUF029
+async def _aiter(items: list[Any]) -> AsyncIterator[Any]:  # ruff: ignore[unused-async]
     for item in items:
         yield item
 
@@ -51,31 +52,32 @@ def test_slug_from_uri_variants(uri: str, expected: str) -> None:
 
 @pytest.mark.asyncio
 async def test_niquests_github_api_request_returns_status_headers_body() -> None:
-    response = MagicMock()
-    response.status_code = 200
-    response.headers = {'Content-Type': 'application/json'}
-    response.content = b'{}'
+    response = MagicMock(status_code=200,
+                         headers={'content-type': b'application/json'},
+                         content=b'{"name": "repo"}')
     session = MagicMock()
     session.request = AsyncMock(return_value=response)
     api = NiquestsGitHubAPI(session, 'wiswa-vcs', oauth_token='tok')
-    status, headers, body = await api._request(  # noqa: SLF001
-        'GET', 'https://api.github.com/x', {'Accept': 'application/vnd.github+json'})
-    assert status == 200
-    assert dict(headers) == {'Content-Type': 'application/json'}
-    assert body == b'{}'
-    session.request.assert_awaited_once()
+    assert await api.getitem('/x') == {'name': 'repo'}
+    assert session.request.await_args is not None
+    _, kwargs = session.request.await_args
+    assert kwargs['method'] == 'GET'
+    assert kwargs['url'] == 'https://api.github.com/x'
+    assert kwargs['data'] is None
 
 
 @pytest.mark.asyncio
 async def test_niquests_github_api_request_sends_body_as_data() -> None:
-    response = MagicMock(status_code=201, headers={}, content=b'')
+    response = MagicMock(status_code=201,
+                         headers={'content-type': 'application/json'},
+                         content=b'{}')
     session = MagicMock()
     session.request = AsyncMock(return_value=response)
     api = NiquestsGitHubAPI(session, 'wiswa-vcs')
-    await api._request('POST', 'https://api.github.com/x', {}, b'payload')  # noqa: SLF001
+    await api.post('/x', data={'a': 1})
     assert session.request.await_args is not None
     _, kwargs = session.request.await_args
-    assert kwargs['data'] == b'payload'
+    assert kwargs['data'] == b'{"a": 1}'
 
 
 @pytest.mark.asyncio
@@ -85,7 +87,7 @@ async def test_niquests_github_api_request_raises_when_response_incomplete() -> 
     session.request = AsyncMock(return_value=response)
     api = NiquestsGitHubAPI(session, 'wiswa-vcs')
     with pytest.raises(RuntimeError, match='incomplete'):
-        await api._request('GET', 'https://api.github.com/x', {})  # noqa: SLF001
+        await api.getitem('/x')
 
 
 @pytest.mark.asyncio
@@ -162,7 +164,7 @@ async def test_protected_tag_patterns_collects_from_tag_rulesets() -> None:
         },
     ]))
 
-    async def fake_getitem(url: str) -> dict[str, Any]:  # noqa: RUF029
+    async def fake_getitem(url: str) -> dict[str, Any]:  # ruff: ignore[unused-async]
         if url.endswith('/1'):
             return {'conditions': {'ref_name': {'include': ['refs/tags/v*', 'refs/tags/~ALL', '']}}}
         raise HTTPException(HTTPStatus.INTERNAL_SERVER_ERROR, 'boom')
@@ -673,7 +675,9 @@ def _make_gh_api(mocker: MockerFixture) -> MagicMock:
     return api
 
 
-def _patch_token(mocker: MockerFixture, token: str | None = 'gh-token') -> None:  # noqa: S107
+def _patch_token(
+        mocker: MockerFixture,
+        token: str | None = 'gh-token') -> None:  # ruff: ignore[hardcoded-password-default]
     mocker.patch('wiswa.vcs.github.get_github_token', return_value=token)
 
 
@@ -761,7 +765,7 @@ async def test_configure_project_logs_topics_failure(mocker: MockerFixture,
     _patch_token(mocker)
     api = _make_gh_api(mocker)
 
-    async def fail_topics(url: str, **_kwargs: Any) -> None:  # noqa: RUF029
+    async def fail_topics(url: str, **_kwargs: Any) -> None:  # ruff: ignore[unused-async]
         if 'topics' in url:
             raise HTTPException(HTTPStatus.FORBIDDEN, 'forbidden')
 
@@ -779,7 +783,7 @@ async def test_configure_project_logs_security_failures(mocker: MockerFixture,
     _patch_token(mocker)
     api = _make_gh_api(mocker)
 
-    async def fail_security(url: str, **_kwargs: Any) -> None:  # noqa: RUF029
+    async def fail_security(url: str, **_kwargs: Any) -> None:  # ruff: ignore[unused-async]
         if 'automated-security-fixes' in url or 'immutable-releases' in url:
             raise HTTPException(HTTPStatus.FORBIDDEN, 'forbidden')
 
@@ -797,7 +801,7 @@ async def test_configure_project_requires_sha_pinning(mocker: MockerFixture) -> 
     _patch_token(mocker)
     api = _make_gh_api(mocker)
 
-    async def getitem(url: str) -> dict[str, Any]:  # noqa: RUF029
+    async def getitem(url: str) -> dict[str, Any]:  # ruff: ignore[unused-async]
         if url.endswith('/actions/permissions'):
             return {'enabled': True, 'allowed_actions': 'selected'}
         return {}
@@ -834,7 +838,7 @@ async def test_configure_project_sha_pinning_read_failure_logged(
     _patch_token(mocker)
     api = _make_gh_api(mocker)
 
-    async def getitem(url: str) -> dict[str, Any]:  # noqa: RUF029
+    async def getitem(url: str) -> dict[str, Any]:  # ruff: ignore[unused-async]
         if url.endswith('/actions/permissions'):
             raise HTTPException(HTTPStatus.FORBIDDEN, 'forbidden')
         return {}
@@ -855,7 +859,7 @@ async def test_configure_project_sha_pinning_put_failure_logged(
     _patch_token(mocker)
     api = _make_gh_api(mocker)
 
-    async def fail_perms(url: str, **_kwargs: Any) -> None:  # noqa: RUF029
+    async def fail_perms(url: str, **_kwargs: Any) -> None:  # ruff: ignore[unused-async]
         if url.endswith('/actions/permissions'):
             raise HTTPException(HTTPStatus.FORBIDDEN, 'forbidden')
 
@@ -885,7 +889,7 @@ async def test_configure_project_immutable_oidc_subject_failure_logged(
     _patch_token(mocker)
     api = _make_gh_api(mocker)
 
-    async def fail_oidc(url: str, **_kwargs: Any) -> None:  # noqa: RUF029
+    async def fail_oidc(url: str, **_kwargs: Any) -> None:  # ruff: ignore[unused-async]
         if 'oidc' in url:
             raise HTTPException(HTTPStatus.FORBIDDEN, 'forbidden')
 
