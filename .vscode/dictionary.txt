@@ -1,4 +1,3 @@
-Ångström
 anyio
 appauthor
 appimage
@@ -13,7 +12,6 @@ caplog
 cdrommsf
 commitizen
 conftest
-cooldown
 coveragerc
 coverallsapp
 ctypes
@@ -49,7 +47,6 @@ globaltoc
 handoff
 hoverxref
 htmlcov
-intersphinx
 isort
 itertools
 jinja
@@ -68,9 +65,12 @@ mypy
 namedtuples
 newlnk
 niquests
+noone
+noqa
 norecursedirs
 nullglob
 numpy
+numpydoc
 oneline
 passthrough
 pathlib
@@ -78,6 +78,7 @@ pavelzw
 pipx
 platformdirs
 plistlib
+popen
 preapproved
 pycache
 pydantic
@@ -94,6 +95,7 @@ reauthentication
 regen
 ripgreprc
 rstcheck
+sbclaude
 schemafile
 sdist
 setattr
@@ -126,3 +128,4 @@ yapf
 yapfignore
 yarnrc
 zizmor
+Ångström
