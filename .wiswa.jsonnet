@@ -3,7 +3,7 @@ local utils = import 'utils.libsonnet';
 {
   uses_user_defaults: true,
   project_name: 'wiswa-vcs',
-  version: '0.1.1',
+  version: '0.1.2',
   description: 'Cross-host VCS metadata sync and mirroring helpers used by Wiswa.',
   keywords: ['command line', 'github', 'gitlab', 'mirror', 'sync', 'vcs'],
   primary_module: 'wiswa',
@@ -11,6 +11,7 @@ local utils = import 'utils.libsonnet';
   want_main: true,
   want_flatpak: false,
   publishing+: { flathub: 'sh.tat.wiswa-vcs' },
+  security_policy_supported_versions: { '0.1.x': ':white_check_mark:' },
   want_snap: false,
   appimage+: {
     exclusions: ['wiswa-sync-gh-gl'],

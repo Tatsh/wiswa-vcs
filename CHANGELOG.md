@@ -9,14 +9,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [unreleased]
 
+## [0.1.2] - 2026-10-02
+
 ### Fixed
 
 - `github.latest_release_tag` and `github.ref_commit_sha` now authenticate with the token from
-  `github.get_github_token` (`GITHUB_TOKEN`, then the system keyring). Previously these lookups
-  (including the release listing for `min_release_age_minutes`) were always unauthenticated and
-  limited to 60 requests an hour, even with `GITHUB_TOKEN` set. The authenticated limit of 5,000
-  requests an hour now applies. The token is sent only on `api.github.com` requests and is never
-  set on the caller's session.
+  `github.get_github_token` (`GITHUB_TOKEN`, then system keyring). Previously requests from both
+  functions (including the release listing for `min_release_age_minutes`) were always
+  unauthenticated and limited to 60 requests an hour, even with `GITHUB_TOKEN` set. The
+  authenticated limit of 5,000 requests an hour now applies. The token is sent only on
+  `api.github.com` requests and is never set on the caller's session.
 
 ## [0.1.1] - 2026-08-06
 
@@ -77,7 +79,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The `USER_AGENT` sent to both GitHub and GitLab now carries the installed package version.
 - `gitlab.parse_badges` now yields badges lazily instead of returning a fully materialised list.
 
-[unreleased]: https://github.com/Tatsh/wiswa-vcs/compare/v0.1.1...HEAD
+[unreleased]: https://github.com/Tatsh/wiswa-vcs/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Tatsh/wiswa-vcs/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Tatsh/wiswa-vcs/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Tatsh/wiswa-vcs/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/Tatsh/wiswa-vcs/releases/tag/v0.0.1
