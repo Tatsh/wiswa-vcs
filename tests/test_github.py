@@ -1134,3 +1134,68 @@ async def test_latest_release_tag_reuses_disk_store_memo_across_calls(tmp_path: 
         'gh_owner/first_False_True': 'v1.0.0',
         'gh_owner/second_False_True': 'v1.0.0',
     }
+
+
+@pytest.mark.asyncio
+async def test_latest_release_tag_sends_token_on_api_requests(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(GITHUB_TOKEN_ENV, 'tok')
+    session = MagicMock()
+    session.get = AsyncMock(side_effect=[
+        _make_niquests_response(ok=False),
+        _make_niquests_response(ok=True, json_data=[{
+            'name': 'v1.0.0'
+        }])
+    ])
+    assert await latest_release_tag(session, 'owner', 'authed') == 'v1.0.0'
+    assert [c.kwargs['headers'] for c in session.get.await_args_list] == [{
+        'Authorization': 'Bearer tok'
+    }] * 2
+
+
+@pytest.mark.asyncio
+async def test_latest_release_tag_age_gate_sends_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(GITHUB_TOKEN_ENV, 'tok')
+    old_pub = (datetime.now(tz=timezone.utc) - timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    session = MagicMock()
+    session.get = AsyncMock(return_value=_make_niquests_response(ok=True,
+                                                                 json_data=[{
+                                                                     'tag_name': 'v1.0.0',
+                                                                     'draft': False,
+                                                                     'prerelease': False,
+                                                                     'published_at': old_pub
+                                                                 }]))
+    assert await latest_release_tag(session, 'owner', 'gated',
+                                    min_release_age_minutes=60) == 'v1.0.0'
+    assert session.get.await_args is not None
+    assert session.get.await_args.kwargs['headers'] == {'Authorization': 'Bearer tok'}
+
+
+@pytest.mark.asyncio
+async def test_ref_commit_sha_sends_token_with_accept_header(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(GITHUB_TOKEN_ENV, 'tok')
+    session = MagicMock()
+    session.get = AsyncMock(return_value=_make_niquests_response(ok=True, text='b' * 40))
+    assert await ref_commit_sha(session, 'owner', 'repo', 'main') == 'b' * 40
+    session.get.assert_called_once_with('https://api.github.com/repos/owner/repo/commits/main',
+                                        headers={
+                                            'Accept': 'application/vnd.github.sha',
+                                            'Authorization': 'Bearer tok'
+                                        },
+                                        timeout=15)
+
+
+@pytest.mark.asyncio
+async def test_api_token_resolved_once_until_cache_cleared(mocker: MockerFixture) -> None:
+    get_token = mocker.patch('wiswa.vcs.github.get_github_token', return_value='tok')
+    session = MagicMock()
+    session.get = AsyncMock(
+        return_value=_make_niquests_response(ok=True, json_data={'tag_name': 'v1.0.0'}))
+    await latest_release_tag(session, 'owner', 'one')
+    await latest_release_tag(session, 'owner', 'two')
+    assert get_token.call_count == 1
+    get_token.assert_called_with('github.com')
+    clear_tag_cache()
+    await latest_release_tag(session, 'owner', 'three')
+    assert get_token.call_count == 2

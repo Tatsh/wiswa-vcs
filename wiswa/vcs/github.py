@@ -14,6 +14,11 @@ shared with Wiswa itself. When the GitHub API responds with ``403`` or ``429``
 deliberately lives under ``wiswa`` (not ``wiswa-vcs``) so a user with Wiswa already
 installed pays no cold-cache cost the first time they invoke :py:mod:`wiswa.vcs`.
 
+Release-tag and commit-SHA lookups send the token from :py:func:`get_github_token` (cached until
+:py:func:`clear_tag_cache`) on each ``api.github.com`` request, raising the rate limit from 60 to
+5,000 requests an hour. The token is never set on the caller's session. Callers may use the
+session for other hosts.
+
 This module deliberately does **not** know about any specific repository. Callers that
 need stricter tag rules for a particular owner/repo (for example ``google/yapf``, whose
 tags must always start with ``v``) pass ``require_v_prefix=True`` to
@@ -22,6 +27,7 @@ tags must always start with ``v``) pass ``require_v_prefix=True`` to
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from functools import cache
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 from urllib.parse import urlparse
 import asyncio
@@ -363,15 +369,31 @@ def _write_disk_entry(key: str, value: str) -> None:
 
 def clear_tag_cache() -> None:
     """
-    Drop the in-process tag/SHA cache and the in-memory snapshot of the disk store.
+    Drop the in-process tag/SHA cache, the in-memory snapshot of the disk store, and the API token.
 
     Does not delete the on-disk cache file under
     ``platformdirs.user_cache_path('wiswa')``; that file is only consulted when GitHub
     responds with ``403`` or ``429``. Intended for tests and long-lived processes that
-    need a fresh view of GitHub.
+    need a fresh view of GitHub. The next lookup resolves the token again through
+    :py:func:`get_github_token`.
     """
     _tag_cache.clear()
     _disk_store_memo_box[0] = None
+    _api_token.cache_clear()
+
+
+@cache
+def _api_token() -> str | None:
+    return get_github_token('github.com')
+
+
+def _api_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
+    # Authorization is set per request, not on the session. Callers reuse the session for PyPI
+    # and npm requests.
+    headers = dict(extra or {})
+    if token := _api_token():
+        headers['Authorization'] = f'Bearer {token}'
+    return headers
 
 
 def _blocked_status(response: object) -> int | None:
@@ -406,6 +428,7 @@ async def _newest_release_tag_before_cutoff(
         r = await session.get(
             f'https://api.github.com/repos/{owner}/{repo}/releases'
             f'?per_page={_GITHUB_RELEASES_PER_PAGE}&page={page}',
+            headers=_api_headers(),
             timeout=15)
         if (status := _blocked_status(r)) is not None:
             return None, status
@@ -517,13 +540,16 @@ async def latest_release_tag(session: niquests.AsyncSession,
                 owner, repo, min_release_age_minutes)
     if not version and not skip_releases:
         r = await session.get(f'https://api.github.com/repos/{owner}/{repo}/releases/latest',
+                              headers=_api_headers(),
                               timeout=15)
         if (status := _blocked_status(r)) is not None:
             blocked_status = status
         if r.ok:
             version = r.json().get('tag_name')
     if not version:
-        r = await session.get(f'https://api.github.com/repos/{owner}/{repo}/tags', timeout=15)
+        r = await session.get(f'https://api.github.com/repos/{owner}/{repo}/tags',
+                              headers=_api_headers(),
+                              timeout=15)
         if (status := _blocked_status(r)) is not None:
             blocked_status = status
         if r.ok:
@@ -583,7 +609,7 @@ async def ref_commit_sha(session: niquests.AsyncSession, owner: str, repo: str, 
     if key in _tag_cache:
         return _tag_cache[key]
     r = await session.get(f'https://api.github.com/repos/{owner}/{repo}/commits/{ref}',
-                          headers={'Accept': 'application/vnd.github.sha'},
+                          headers=_api_headers({'Accept': 'application/vnd.github.sha'}),
                           timeout=15)
     blocked = _blocked_status(r)
     if r.ok and (sha := (r.text or '').strip()):

@@ -8,7 +8,7 @@ import os
 from click.testing import CliRunner
 import pytest
 
-from wiswa.vcs.github import clear_tag_cache
+from wiswa.vcs.github import GITHUB_TOKEN_ENV, clear_tag_cache
 
 if os.getenv('_PYTEST_RAISE', '0') != '0':  # pragma no cover
 
@@ -43,10 +43,15 @@ def reset_github_tag_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     Drop the in-process and on-disk GitHub tag cache before each test.
 
     Redirects ``XDG_CACHE_HOME`` and ``XDG_CONFIG_HOME`` to ``tmp_path`` so tests cannot
-    leak cache state between each other, then clears the in-process cache.
+    leak cache state between each other. Removes :py:data:`~wiswa.vcs.github.GITHUB_TOKEN_ENV`
+    and stubs the keyring to return no token, then clears the in-process cache.
     """
     monkeypatch.setenv('XDG_CACHE_HOME', str(tmp_path / 'xdg-cache'))
     monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path / 'xdg-config'))
+    # GitHub API lookups resolve a token; never read the developer's real token from the
+    # environment or keyring.
+    monkeypatch.delenv(GITHUB_TOKEN_ENV, raising=False)
+    monkeypatch.setattr('wiswa.vcs.github.keyring.get_password', lambda *_: None)
     clear_tag_cache()
 
 

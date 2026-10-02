@@ -9,6 +9,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [unreleased]
 
+### Fixed
+
+- `github.latest_release_tag` and `github.ref_commit_sha` now authenticate with the token from
+  `github.get_github_token` (`GITHUB_TOKEN`, then the system keyring). Previously these lookups
+  (including the release listing for `min_release_age_minutes`) were always unauthenticated and
+  limited to 60 requests an hour, even with `GITHUB_TOKEN` set. The authenticated limit of 5,000
+  requests an hour now applies. The token is sent only on `api.github.com` requests and is never
+  set on the caller's session.
+
 ## [0.1.1] - 2026-08-06
 
 ### Fixed
