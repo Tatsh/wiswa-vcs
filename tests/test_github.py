@@ -1,7 +1,7 @@
 """Tests for :py:mod:`wiswa.vcs.github`."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
@@ -471,8 +471,8 @@ async def test_latest_release_tag_disk_write_oserror_logged(
 
 @pytest.mark.asyncio
 async def test_latest_release_tag_age_gate_picks_older_release() -> None:
-    old_pub = (datetime.now(tz=timezone.utc) - timedelta(days=14)).strftime('%Y-%m-%dT%H:%M:%SZ')
-    new_pub = (datetime.now(tz=timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    old_pub = (datetime.now(tz=UTC) - timedelta(days=14)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    new_pub = (datetime.now(tz=UTC) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
     releases = _make_niquests_response(ok=True,
                                        json_data=[{
                                            'tag_name': 'v2.0.0',
@@ -494,7 +494,7 @@ async def test_latest_release_tag_age_gate_picks_older_release() -> None:
 @pytest.mark.asyncio
 async def test_latest_release_tag_age_gate_no_match_falls_back(
         caplog: pytest.LogCaptureFixture) -> None:
-    new_pub = (datetime.now(tz=timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    new_pub = (datetime.now(tz=UTC) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
     releases = _make_niquests_response(ok=True,
                                        json_data=[{
                                            'tag_name': 'v5.0.0',
@@ -523,8 +523,8 @@ async def test_latest_release_tag_age_gate_blocked_falls_back_to_latest() -> Non
 
 @pytest.mark.asyncio
 async def test_latest_release_tag_age_gate_skips_invalid_entries() -> None:
-    old_pub = (datetime.now(tz=timezone.utc) - timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
-    new_pub = (datetime.now(tz=timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    old_pub = (datetime.now(tz=UTC) - timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    new_pub = (datetime.now(tz=UTC) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
     batch: list[Any] = [
         'not-a-dict',
         {
@@ -578,7 +578,7 @@ async def test_latest_release_tag_age_gate_skips_invalid_entries() -> None:
 
 @pytest.mark.asyncio
 async def test_latest_release_tag_age_gate_partial_release_page_terminates() -> None:
-    old_pub = (datetime.now(tz=timezone.utc) - timedelta(days=20)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    old_pub = (datetime.now(tz=UTC) - timedelta(days=20)).strftime('%Y-%m-%dT%H:%M:%SZ')
     page = [{'tag_name': 'v1.1.0', 'draft': False, 'prerelease': False, 'published_at': old_pub}]
     session = MagicMock()
     session.get = AsyncMock(side_effect=[_make_niquests_response(ok=True, json_data=page)])
@@ -1009,7 +1009,7 @@ async def test_configure_project_sync_rulesets_ignores_malformed_entries(
 
 @pytest.mark.asyncio
 async def test_latest_release_tag_age_gate_with_invalid_semver_skipped() -> None:
-    old_pub = (datetime.now(tz=timezone.utc) - timedelta(days=20)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    old_pub = (datetime.now(tz=UTC) - timedelta(days=20)).strftime('%Y-%m-%dT%H:%M:%SZ')
     releases = _make_niquests_response(ok=True,
                                        json_data=[{
                                            'tag_name': 'v!!!',
@@ -1033,7 +1033,7 @@ async def test_latest_release_tag_age_gate_with_invalid_semver_skipped() -> None
 
 @pytest.mark.asyncio
 async def test_latest_release_tag_age_gate_require_v_prefix_rejects_non_v_tag() -> None:
-    old_pub = (datetime.now(tz=timezone.utc) - timedelta(days=20)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    old_pub = (datetime.now(tz=UTC) - timedelta(days=20)).strftime('%Y-%m-%dT%H:%M:%SZ')
     releases = _make_niquests_response(ok=True,
                                        json_data=[{
                                            'tag_name': 'release-0.40',
@@ -1058,7 +1058,7 @@ async def test_latest_release_tag_age_gate_require_v_prefix_rejects_non_v_tag() 
 
 @pytest.mark.asyncio
 async def test_latest_release_tag_age_gate_no_digit_suffix_when_disabled() -> None:
-    old_pub = (datetime.now(tz=timezone.utc) - timedelta(days=20)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    old_pub = (datetime.now(tz=UTC) - timedelta(days=20)).strftime('%Y-%m-%dT%H:%M:%SZ')
     releases = _make_niquests_response(ok=True,
                                        json_data=[{
                                            'tag_name': 'v0.40.0-beta',
@@ -1083,7 +1083,7 @@ async def test_latest_release_tag_age_gate_no_digit_suffix_when_disabled() -> No
 @pytest.mark.asyncio
 async def test_latest_release_tag_age_gate_exhausts_full_page(mocker: MockerFixture) -> None:
     mocker.patch('wiswa.vcs.github._GITHUB_RELEASES_PAGE_CAP', 1)
-    new_pub = (datetime.now(tz=timezone.utc) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    new_pub = (datetime.now(tz=UTC) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
     page1 = [{
         'tag_name': f'v50.{i}.0',
         'draft': False,
@@ -1099,7 +1099,7 @@ async def test_latest_release_tag_age_gate_exhausts_full_page(mocker: MockerFixt
 
 @pytest.mark.asyncio
 async def test_latest_release_tag_age_gate_keeps_highest_eligible_version() -> None:
-    old_pub = (datetime.now(tz=timezone.utc) - timedelta(days=20)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    old_pub = (datetime.now(tz=UTC) - timedelta(days=20)).strftime('%Y-%m-%dT%H:%M:%SZ')
     releases = _make_niquests_response(ok=True,
                                        json_data=[{
                                            'tag_name': 'v3.0.0',
@@ -1156,7 +1156,7 @@ async def test_latest_release_tag_sends_token_on_api_requests(
 @pytest.mark.asyncio
 async def test_latest_release_tag_age_gate_sends_token(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(GITHUB_TOKEN_ENV, 'tok')
-    old_pub = (datetime.now(tz=timezone.utc) - timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    old_pub = (datetime.now(tz=UTC) - timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ')
     session = MagicMock()
     session.get = AsyncMock(return_value=_make_niquests_response(ok=True,
                                                                  json_data=[{

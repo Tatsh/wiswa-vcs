@@ -26,7 +26,7 @@ tags must always start with ``v``) pass ``require_v_prefix=True`` to
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from functools import cache
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 from urllib.parse import urlparse
@@ -445,7 +445,7 @@ async def _newest_release_tag_before_cutoff(
             if not isinstance(tag, str) or not tag or not isinstance(published, str):
                 continue
             try:
-                pub_dt = datetime.fromisoformat(published.replace('Z', '+00:00'))
+                pub_dt = datetime.fromisoformat(published)
             except ValueError:
                 continue
             if pub_dt > cutoff or not _tag_allowed_for_policy(
@@ -523,7 +523,7 @@ async def latest_release_tag(session: niquests.AsyncSession,
     version: str | None = None
     blocked_status: int | None = None
     if min_release_age_minutes is not None:
-        cutoff = datetime.now(tz=timezone.utc) - timedelta(minutes=min_release_age_minutes)
+        cutoff = datetime.now(tz=UTC) - timedelta(minutes=min_release_age_minutes)
         gated, status = await _newest_release_tag_before_cutoff(session,
                                                                 owner,
                                                                 repo,
@@ -814,7 +814,7 @@ async def _put_github_security_features(api: NiquestsGitHubAPI, slug: str, *,
         try:
             await api.put(f'/repos/{slug}/{endpoint}', data=b'')
             log.info('Enabled GitHub `%s`.', endpoint)
-        except HTTPException as e:  # ruff: ignore[try-except-in-loop]  # one failure must not block the rest.
+        except HTTPException as e:  # one failure must not block the rest.
             log.warning('Could not enable GitHub `%s`: %s.', endpoint, e)
     if immutable_releases:
         try:

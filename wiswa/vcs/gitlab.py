@@ -261,7 +261,7 @@ async def _put_project_settings(api: gl_abc.GitLabAPI, encoded_project_path: str
     while True:
         try:
             await api.put(f'/projects/{encoded_project_path}', data=dict(remaining))
-        except BadRequest as e:  # ruff: ignore[try-except-in-loop]  # each retry must observe its own rejection.
+        except BadRequest as e:  # each retry must observe its own rejection.
             if e.status_code not in _RECOVERABLE_SETTINGS_STATUSES:
                 raise
             if not (rejected := _rejected_setting_keys(e, remaining)):
