@@ -109,7 +109,6 @@ statusline
 subtables
 tatsh
 testpaths
-tomlkit
 tomllib
 tostring
 tryfirst
