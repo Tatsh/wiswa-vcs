@@ -571,9 +571,8 @@ def gitlab_merged_remote_tables(
         default_branch_protection)`` ready to feed the GitLab REST API.
     """
     glb = gitlab or {}
-    return (glb.get('project_settings') or cast('ProjectSettings', {}), glb.get('push_rules')
-            or cast('PushRules', {}), glb.get('project_approvals') or cast('ProjectApprovals', {}),
-            glb.get('default_branch_protection') or cast('BranchProtectionOverrides', {}))
+    return (glb.get('project_settings') or {}, glb.get('push_rules')
+            or {}, glb.get('project_approvals') or {}, glb.get('default_branch_protection') or {})
 
 
 def desired_gitlab_badges(*,

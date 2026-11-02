@@ -152,7 +152,7 @@ async def test_niquests_gitlab_api_request_raises_when_response_incomplete() -> 
 
 @pytest.mark.asyncio
 async def test_niquests_gitlab_api_sleep_delegates(mocker: MockerFixture) -> None:
-    sleep = mocker.patch('wiswa.vcs.gitlab.asyncio.sleep', new=AsyncMock())
+    sleep = mocker.patch('wiswa.vcs.gitlab.asyncio', sleep=AsyncMock()).sleep
     api = NiquestsGitLabAPI(MagicMock(), 'wiswa-vcs')
     await api.sleep(1.5)
     sleep.assert_awaited_once_with(1.5)
